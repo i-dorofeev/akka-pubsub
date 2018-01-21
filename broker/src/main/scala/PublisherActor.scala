@@ -7,5 +7,8 @@ class PublisherActor(val broker: ActorRef) extends Actor {
   override def receive: Receive = {
     case PublisherMessage(id, value) =>
       broker ! Event("publisher", s"$id - $value")
+
+    case EventAck(topic) =>
+      println(s"Publisher: received event ack; topic = $topic")
   }
 }
