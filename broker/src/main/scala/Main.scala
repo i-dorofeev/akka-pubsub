@@ -11,8 +11,10 @@ object Main extends App {
 
   println("Broker started")
 
+  /*
   broker ! Subscribe("dummy")
   broker ! Event("dummy", "some data")
+  */
 
   publisher ! PublisherMessage(1, "msg")
 
