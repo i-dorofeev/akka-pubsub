@@ -1,24 +1,28 @@
 import akka.actor.{ActorSystem, Props}
+import akka.cluster.Cluster
 
 import scala.io.StdIn
 
 object Main extends App {
 
   val system = ActorSystem("pubsub-broker")
-  val broker = system.actorOf(Props(classOf[BrokerActor]))
-  val publisher = system.actorOf(Props(classOf[PublisherActor], broker))
-  val subscriber = system.actorOf(Props(classOf[SubscriberActor], broker))
 
-  println("Broker started")
+  try {
+    val broker = system.actorOf(Props(classOf[BrokerActor]), "broker")
+    val publisher = system.actorOf(Props(classOf[PublisherActor], broker))
+    val subscriber = system.actorOf(Props(classOf[SubscriberActor], broker))
 
-  /*
-  broker ! Subscribe("dummy")
-  broker ! Event("dummy", "some data")
-  */
+    println("Broker started")
 
-  publisher ! PublisherMessage(1, "msg")
+    println("Press enter to send a message")
+    StdIn.readLine()
+    publisher ! PublisherMessage(1, "msg")
 
-  StdIn.readLine()
-  import scala.concurrent.ExecutionContext.Implicits.global
-  system.terminate().andThen { case _ => println("Broker stopped") }
+    StdIn.readLine()
+  } finally {
+    import scala.concurrent.ExecutionContext.Implicits.global
+    val cluster = Cluster(system)
+    cluster.leave(cluster.selfAddress)
+    system.terminate().andThen { case _ => println("Broker stopped") }
+  }
 }

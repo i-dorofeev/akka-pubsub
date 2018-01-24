@@ -6,7 +6,6 @@ scalaVersion := "2.12.4"
 
 resolvers += Resolver.jcenterRepo
 
-// akka
 libraryDependencies ++= {
   val akkaVersion = "2.5.9"
 

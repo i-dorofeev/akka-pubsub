@@ -1,7 +1,6 @@
 import akka.actor.{Actor, ActorRef, Stash}
 
 import scala.collection.mutable
-import scala.concurrent.Future
 import scala.util.{Failure, Success}
 
 case class Subscribe(topic: String)
