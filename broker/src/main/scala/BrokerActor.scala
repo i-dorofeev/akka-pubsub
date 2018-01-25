@@ -1,6 +1,5 @@
-import akka.actor.{Actor, ActorRef, Props, Stash}
+import akka.actor.{Actor, Props, Stash, Terminated}
 
-import scala.collection.mutable
 import scala.util.{Failure, Success}
 
 case class Subscribe(topic: String, eventId: Int)
@@ -9,7 +8,7 @@ case class EventAck(topic: String)
 
 class BrokerActor extends Actor with Stash {
 
-  private val subscriptions = mutable.HashMap[String, mutable.HashSet[ActorRef]]()
+  private val subscriptions = new Subscriptions
 
   import context._
 
@@ -39,8 +38,9 @@ class BrokerActor extends Actor with Stash {
 
   private def work: Receive = {
     case Subscribe(topic, eventId) =>
-      subscriptions.getOrElseUpdate(topic, { mutable.HashSet[ActorRef]() })
-        .add(context.actorOf(Props(classOf[SubscriptionActor], sender(), topic, eventId)))
+      val subscriptionActor = actorOf(Props(classOf[SubscriptionActor], sender(), topic, eventId))
+      subscriptions.register(topic, subscriptionActor)
+      watch(subscriptionActor)
 
       println(s"Subscribed $sender() to topic $topic")
 
@@ -49,10 +49,13 @@ class BrokerActor extends Actor with Stash {
       BrokerDatabase.persistEvent(evt)
           .andThen { case Success(_) =>
             publisher ! EventAck(evt.topic)
-            subscriptions.get(evt.topic)
-              .foreach { subscribers => subscribers.foreach(s => s ! evt) }
+            subscriptions.byTopic(evt.topic).foreach { s => s ! evt }
           }
       println(s"Got new event ($evt)")
+
+    case Terminated(subscriptionActor) =>
+      subscriptions.unregister(subscriptionActor)
+      println(s"Unregistered SubscriptionActor $subscriptionActor")
   }
 }
 
