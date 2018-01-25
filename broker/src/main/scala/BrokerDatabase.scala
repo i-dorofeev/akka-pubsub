@@ -1,14 +1,16 @@
+import slick.basic.DatabasePublisher
 import slick.jdbc.H2Profile.api._
 import slick.migration.api.TableMigration
 
 import scala.concurrent.Future
 
-class Events(tag: Tag) extends Table[(Int, String, String)](tag, "events") {
+class Events(tag: Tag) extends Table[(Int, String, Int, String)](tag, "events") {
   def id = column[Int]("id", O.PrimaryKey, O.AutoInc)
   def topic = column[String]("topic")
+  def eventId = column[Int]("event_id")
   def payload = column[String]("payload")
 
-  def * = (id, topic, payload)
+  def * = (id, topic, eventId, payload)
 }
 
 
@@ -34,9 +36,15 @@ object BrokerDatabase {
 
   def persistEvent(evt: Event): Future[Unit] = {
     val insert = DBIO.seq(
-      events += (0, evt.topic, evt.payload)
+      events += (0, evt.topic, evt.eventId, evt.payload)
     )
 
     db.run(insert)
+  }
+
+  def fetchEvents(topic: String, fromEventId: Int): DatabasePublisher[Event] = {
+    val query = events.filter { e => e.topic === topic && e.eventId >= fromEventId }
+    db.stream(query.result)
+        .mapResult { case (_, _, eventId, payload) => Event(topic, eventId, payload) }
   }
 }

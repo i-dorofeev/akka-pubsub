@@ -1,10 +1,10 @@
-import akka.actor.{Actor, ActorRef, Stash}
+import akka.actor.{Actor, ActorRef, Props, Stash}
 
 import scala.collection.mutable
 import scala.util.{Failure, Success}
 
-case class Subscribe(topic: String)
-case class Event(topic: String, payload: String)
+case class Subscribe(topic: String, eventId: Int)
+case class Event(topic: String, eventId: Int, payload: String)
 case class EventAck(topic: String)
 
 class BrokerActor extends Actor with Stash {
@@ -38,8 +38,10 @@ class BrokerActor extends Actor with Stash {
   }
 
   private def work: Receive = {
-    case Subscribe(topic) =>
-      subscriptions.getOrElseUpdate(topic, { mutable.HashSet[ActorRef]() }).add(sender())
+    case Subscribe(topic, eventId) =>
+      subscriptions.getOrElseUpdate(topic, { mutable.HashSet[ActorRef]() })
+        .add(context.actorOf(Props(classOf[SubscriptionActor], sender(), topic, eventId)))
+
       println(s"Subscribed $sender() to topic $topic")
 
     case evt: Event =>

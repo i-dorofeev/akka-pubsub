@@ -17,9 +17,9 @@ class SubscriberActor extends Actor {
 
   override def receive: Receive = {
     case MemberUp(member) =>
-      context.actorSelection(RootActorPath(member.address) / "user" / "broker") ! Subscribe("publisher")
+      context.actorSelection(RootActorPath(member.address) / "user" / "broker") ! Subscribe("publisher", 0)
 
-    case Event(topic, payload) =>
+    case Event(topic, _, payload) =>
       println(s"Subscriber received event($topic - $payload)")
 
     case evt =>

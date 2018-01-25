@@ -14,11 +14,13 @@ object Main extends App {
 
     println("Broker started")
 
-    println("Press enter to send a message")
-    StdIn.readLine()
-    publisher ! PublisherMessage(1, "msg")
+    println("Press enter to send a message or q to stop the broker.")
 
-    StdIn.readLine()
+    Iterator.continually(StdIn.readLine)
+      .takeWhile(_ != "q")
+      .toSeq.zipWithIndex
+      .foreach { case (input, id) => publisher ! PublisherMessage(id, input) }
+
   } finally {
     import scala.concurrent.ExecutionContext.Implicits.global
     val cluster = Cluster(system)
