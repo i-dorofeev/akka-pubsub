@@ -1,3 +1,4 @@
+import BrokerActor.{Event, Subscribe}
 import akka.actor.{Actor, ActorRef}
 
 class SubscriberActor(val broker: ActorRef) extends Actor {

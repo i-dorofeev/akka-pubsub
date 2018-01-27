@@ -1,12 +1,14 @@
+import BrokerActor.{Event, EventAck, Subscribe}
 import akka.actor.{Actor, Props, Stash, Terminated}
 
 import scala.util.{Failure, Success}
 
-case class Subscribe(topic: String, eventId: Int)
-case class Event(topic: String, eventId: Int, payload: String)
-case class EventAck(topic: String)
-
 object BrokerActor {
+
+  case class Subscribe(topic: String, eventId: Int)
+  case class Event(topic: String, eventId: Int, payload: String)
+  case class EventAck(topic: String)
+
   def props(): Props = Props(new BrokerActor())
 }
 

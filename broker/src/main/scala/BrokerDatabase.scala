@@ -1,6 +1,6 @@
+import BrokerActor.Event
 import slick.basic.DatabasePublisher
 import slick.jdbc.H2Profile.api._
-import slick.migration.api.TableMigration
 
 import scala.concurrent.Future
 
@@ -17,12 +17,6 @@ class Events(tag: Tag) extends Table[(Int, String, Int, String)](tag, "events") 
 object BrokerDatabase {
 
   val events = TableQuery[Events]
-
-  /*
-  val migration = TableMigration(events)
-    .create
-    .addColumns(_.id, _.topic, _.payload)
-    */
 
   val db = Database.forConfig("brokerDb")
 

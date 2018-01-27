@@ -1,3 +1,4 @@
+import BrokerActor.Event
 import SubscriptionActor.SubscriptionAck
 import akka.actor.{Actor, ActorRef, Props, Terminated}
 

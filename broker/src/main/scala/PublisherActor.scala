@@ -1,3 +1,4 @@
+import BrokerActor.{Event, EventAck}
 import akka.actor.{Actor, ActorRef}
 
 case class PublisherMessage(id: Int, value: String)
