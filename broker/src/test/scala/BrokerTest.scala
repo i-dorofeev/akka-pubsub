@@ -1,7 +1,8 @@
 import akka.actor.{ActorSystem, Props}
-import akka.testkit.{ImplicitSender, TestKit}
+import akka.testkit.{ImplicitSender, TestKit, TestProbe}
 import org.scalatest.time.Milliseconds
 import org.scalatest.{BeforeAndAfterAll, Matchers, WordSpecLike}
+
 import scala.concurrent.duration._
 
 class BrokerTest() extends TestKit(ActorSystem("BrokerTest"))
@@ -12,13 +13,37 @@ class BrokerTest() extends TestKit(ActorSystem("BrokerTest"))
 
   override def afterAll: Unit = {
     TestKit.shutdownActorSystem(system)
+    println("Actor system shut down.")
   }
+
+  private val broker = system.actorOf(Props(classOf[BrokerActor]))
 
   "A broker actor" must {
     "not deliver an event if not subscribed" in {
-      val broker = system.actorOf(Props(classOf[BrokerActor]))
-      broker ! Event("test-topic", 0, "payload")
+      broker ! Event("topic1", 0, "payload")
       expectNoMessage(100 millis)
+    }
+
+    "deliver an event if subscribed" in {
+      val subscriber = TestProbe()
+      subscriber.send(broker, Subscribe("topic2", 0))
+      subscriber.expectMsgClass(classOf[SubscriptionAck])
+
+      broker ! Event("topic2", 0, "topic2 - 0")
+
+      subscriber.expectMsg(Event("topic2", 0, "topic2 - 0"))
+    }
+
+    "deliver all the events available from requested id on subscription" in {
+      broker ! Event("topic3", 0, "topic3 - 0")
+      broker ! Event("topic3", 1, "topic3 - 1")
+      broker ! Event("topic3", 2, "topic3 - 2")
+
+      val subscriber = TestProbe()
+      subscriber.send(broker, Subscribe("topic3", 1))
+      subscriber.expectMsgClass(classOf[SubscriptionAck])
+      subscriber.expectMsg(Event("topic3", 1, "topic3 - 1"))
+      subscriber.expectMsg(Event("topic3", 2, "topic3 - 2"))
     }
   }
 

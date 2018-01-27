@@ -23,6 +23,10 @@ class BrokerActor extends Actor with Stash {
         }
   }
 
+  override def postStop(): Unit = {
+    BrokerDatabase.shutdown()
+  }
+
   override def receive: Receive = init
 
   private def init: Receive = {
