@@ -1,6 +1,13 @@
-import akka.actor.{Actor, ActorRef, Terminated}
+import SubscriptionActor.SubscriptionAck
+import akka.actor.{Actor, ActorRef, Props, Terminated}
 
-case class SubscriptionAck(subscription: ActorRef)
+object SubscriptionActor {
+
+  case class SubscriptionAck(subscription: ActorRef)
+
+  def props(subscriber: ActorRef, topic: String, eventId: Int): Props =
+    Props(new SubscriptionActor(subscriber, topic, eventId))
+}
 
 class SubscriptionActor(val subscriber: ActorRef, val topic: String, var eventId: Int) extends Actor {
 
@@ -16,6 +23,7 @@ class SubscriptionActor(val subscriber: ActorRef, val topic: String, var eventId
   override def receive: Receive = {
     case evt: Event =>
       subscriber ! evt
+
     case Terminated(a) if a == subscriber =>
       context.stop(self)
       println(s"Detected subscriber $subscriber terminated. Cancelling subscription")

@@ -46,7 +46,7 @@ class BrokerActor extends Actor with Stash {
 
   private def work: Receive = {
     case Subscribe(topic, eventId) =>
-      val subscriptionActor = actorOf(Props(classOf[SubscriptionActor], sender(), topic, eventId))
+      val subscriptionActor = actorOf(SubscriptionActor.props(sender(), topic, eventId))
       subscriptions.register(topic, subscriptionActor)
       watch(subscriptionActor)
 
