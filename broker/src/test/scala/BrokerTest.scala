@@ -1,6 +1,5 @@
-import akka.actor.{ActorSystem, Props}
+import akka.actor.ActorSystem
 import akka.testkit.{ImplicitSender, TestKit, TestProbe}
-import org.scalatest.time.Milliseconds
 import org.scalatest.{BeforeAndAfterAll, Matchers, WordSpecLike}
 
 import scala.concurrent.duration._
@@ -16,7 +15,7 @@ class BrokerTest() extends TestKit(ActorSystem("BrokerTest"))
     println("Actor system shut down.")
   }
 
-  private val broker = system.actorOf(Props(classOf[BrokerActor]))
+  private val broker = system.actorOf(BrokerActor.props())
 
   "A broker actor" must {
     "not deliver an event if not subscribed" in {

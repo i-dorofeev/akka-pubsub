@@ -8,7 +8,7 @@ object Main extends App {
   val system = ActorSystem("pubsub-broker")
 
   try {
-    val broker = system.actorOf(Props(classOf[BrokerActor]), "broker")
+    val broker = system.actorOf(BrokerActor.props(), "broker")
     val publisher = system.actorOf(Props(classOf[PublisherActor], broker))
     val subscriber = system.actorOf(Props(classOf[SubscriberActor], broker))
 

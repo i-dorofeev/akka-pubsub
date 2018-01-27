@@ -6,6 +6,10 @@ case class Subscribe(topic: String, eventId: Int)
 case class Event(topic: String, eventId: Int, payload: String)
 case class EventAck(topic: String)
 
+object BrokerActor {
+  def props(): Props = Props(new BrokerActor())
+}
+
 class BrokerActor extends Actor with Stash {
 
   private val subscriptions = new Subscriptions
