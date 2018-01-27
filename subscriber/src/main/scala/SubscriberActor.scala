@@ -1,3 +1,4 @@
+import BrokerActor.{Event, Subscribe}
 import akka.actor.{Actor, RootActorPath}
 import akka.cluster.Cluster
 import akka.cluster.ClusterEvent._

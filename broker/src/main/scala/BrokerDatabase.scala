@@ -37,9 +37,12 @@ object BrokerDatabase {
   }
 
   def fetchEvents(topic: String, fromEventId: Int): DatabasePublisher[Event] = {
-    val query = events.filter { e => e.topic === topic && e.eventId >= fromEventId }.sortBy { e => e.eventId }
+    val query = events
+        .filter(_.topic === topic)
+        .filter(_.eventId >= fromEventId)
+        .sortBy(_.eventId)
     db.stream(query.result)
-        .mapResult { case (_, _, eventId, payload) => Event(topic, eventId, payload) }
+        .mapResult { case (_, eventTopic, eventId, payload) => Event(eventTopic, eventId, payload) }
   }
 
   def shutdown(): Unit = {

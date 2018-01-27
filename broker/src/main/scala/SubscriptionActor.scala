@@ -1,6 +1,8 @@
 import BrokerActor.Event
 import SubscriptionActor.SubscriptionAck
-import akka.actor.{Actor, ActorRef, Props, Terminated}
+import akka.actor.{Actor, ActorRef, Props, Stash, Terminated}
+
+import scala.util.{Failure, Success}
 
 object SubscriptionActor {
 
@@ -10,18 +12,33 @@ object SubscriptionActor {
     Props(new SubscriptionActor(subscriber, topic, eventId))
 }
 
-class SubscriptionActor(val subscriber: ActorRef, val topic: String, var eventId: Int) extends Actor {
+class SubscriptionActor(val subscriber: ActorRef, val topic: String, var eventId: Int) extends Actor with Stash {
 
-  import context.dispatcher
+  import context._
 
   override def preStart(): Unit = {
     subscriber ! SubscriptionAck(self)
     context.watch(subscriber)
     BrokerDatabase.fetchEvents(topic, eventId)
-      .foreach { evt => subscriber ! evt }
+      .foreach { evt =>
+        println(s"Forwarding $evt to $subscriber")
+        subscriber ! evt }
+      .onComplete {
+        case Success(_) =>
+          self ! "subscription initialized"
+        case Failure(ex) =>
+          println(s"Failed to initialize subscription: $ex")
+      }
   }
 
-  override def receive: Receive = {
+  private def init: Receive = {
+    case "subscription initialized" if sender() == self =>
+      unstashAll()
+      become(work)
+      println("subscription switched to work mode")
+  }
+
+  private def work: Receive = {
     case evt: Event =>
       subscriber ! evt
 
@@ -29,5 +46,7 @@ class SubscriptionActor(val subscriber: ActorRef, val topic: String, var eventId
       context.stop(self)
       println(s"Detected subscriber $subscriber terminated. Cancelling subscription")
   }
+
+  override def receive: Receive = init
 
 }

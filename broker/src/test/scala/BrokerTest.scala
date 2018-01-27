@@ -26,25 +26,27 @@ class BrokerTest() extends TestKit(ActorSystem("BrokerTest"))
     }
 
     "deliver an event if subscribed" in {
-      val subscriber = TestProbe()
-      subscriber.send(broker, Subscribe("topic2", 0))
-      subscriber.expectMsgClass(classOf[SubscriptionAck])
+      val subscriber2 = TestProbe("subscriber2")
+      subscriber2.send(broker, Subscribe("topic2", 0))
+      subscriber2.expectMsgClass(classOf[SubscriptionAck])
 
       broker ! Event("topic2", 0, "topic2 - 0")
 
-      subscriber.expectMsg(Event("topic2", 0, "topic2 - 0"))
+      subscriber2.expectMsg(Event("topic2", 0, "topic2 - 0"))
     }
 
     "deliver all the events available from requested id on subscription" in {
       broker ! Event("topic3", 0, "topic3 - 0")
       broker ! Event("topic3", 1, "topic3 - 1")
       broker ! Event("topic3", 2, "topic3 - 2")
+      broker ! Event("topic3", 3, "topic3 - 3")
 
-      val subscriber = TestProbe()
-      subscriber.send(broker, Subscribe("topic3", 1))
-      subscriber.expectMsgClass(classOf[SubscriptionAck])
-      subscriber.expectMsg(Event("topic3", 1, "topic3 - 1"))
-      subscriber.expectMsg(Event("topic3", 2, "topic3 - 2"))
+      val subscriber3 = TestProbe("subscriber3")
+      subscriber3.send(broker, Subscribe("topic3", 1))
+      subscriber3.expectMsgClass(classOf[SubscriptionAck])
+      subscriber3.expectMsg(Event("topic3", 1, "topic3 - 1"))
+      subscriber3.expectMsg(Event("topic3", 2, "topic3 - 2"))
+      subscriber3.expectMsg(Event("topic3", 3, "topic3 - 3"))
     }
   }
 
