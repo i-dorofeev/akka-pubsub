@@ -1,4 +1,6 @@
-import BrokerActor.Event
+package pubsub
+
+import pubsub.BrokerActor.Event
 import slick.basic.DatabasePublisher
 import slick.jdbc.H2Profile.api._
 
@@ -12,7 +14,6 @@ class Events(tag: Tag) extends Table[(Int, String, Int, String)](tag, "events") 
 
   def * = (id, topic, eventId, payload)
 }
-
 
 object BrokerDatabase {
 

@@ -1,8 +1,9 @@
-import BrokerActor.{Event, Subscribe}
-import SubscriptionActor.SubscriptionAck
 import akka.actor.ActorSystem
 import akka.testkit.{ImplicitSender, TestKit, TestProbe}
 import org.scalatest.{BeforeAndAfterAll, Matchers, WordSpecLike}
+import pubsub.BrokerActor
+import pubsub.BrokerActor.{Event, Subscribe}
+import pubsub.SubscriptionActor.SubscriptionAck
 
 import scala.concurrent.duration._
 
@@ -14,7 +15,6 @@ class BrokerTest() extends TestKit(ActorSystem("BrokerTest"))
 
   override def afterAll: Unit = {
     TestKit.shutdownActorSystem(system)
-    println("Actor system shut down.")
   }
 
   private val broker = system.actorOf(BrokerActor.props())

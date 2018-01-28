@@ -1,5 +1,7 @@
-import BrokerActor.{Event, EventAck, Subscribe}
+package pubsub
+
 import akka.actor.{Actor, ActorLogging, Props, Stash, Terminated}
+import pubsub.BrokerActor.{Event, EventAck, Subscribe}
 
 import scala.util.{Failure, Success}
 

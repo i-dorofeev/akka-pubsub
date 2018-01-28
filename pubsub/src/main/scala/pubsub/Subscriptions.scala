@@ -1,3 +1,5 @@
+package pubsub
+
 import akka.actor.ActorRef
 
 import scala.collection.mutable
