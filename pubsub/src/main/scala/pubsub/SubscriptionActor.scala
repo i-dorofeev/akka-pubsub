@@ -21,33 +21,39 @@ class SubscriptionActor(val subscriber: ActorRef, val topic: String, var eventId
   import context._
 
   override def preStart(): Unit = {
+    log.debug("Initializing...")
+
     subscriber ! SubscriptionAck(self)
     context.watch(subscriber)
 
-    BrokerDatabase.fetchEvents(topic, eventId)
-
-      .foreach { evt =>
-        log.debug("Forwarding {} to {}", evt, subscriber)
-        subscriber ! evt }
-
+    BrokerDatabase.fetchEvents(topic, eventId).foreach(forward)
       .onComplete {
         case Success(_) =>
-          self ! "subscription initialized"
+          self ! "initialized"
         case Failure(ex) =>
           log.error("Failed to initialize subscription", ex)
       }
   }
 
+  private def forward(evt: Event): Unit = {
+    log.debug("Forwarding {} to {}", evt, subscriber)
+    subscriber ! evt
+  }
+
   private def init: Receive = {
-    case "subscription initialized" if sender() == self =>
+    case "initialized" if sender() == self =>
       unstashAll()
       become(work)
-      log.debug("Subscription switched to work mode")
+      log.debug("Successfully initialized and switched to work mode")
+
+    case msg =>
+      stash()
+      log.debug("Initializing... - stashed {}", msg)
   }
 
   private def work: Receive = {
     case evt: Event =>
-      subscriber ! evt
+      forward(evt)
 
     case Terminated(a) if a == subscriber =>
       context.stop(self)
@@ -55,5 +61,4 @@ class SubscriptionActor(val subscriber: ActorRef, val topic: String, var eventId
   }
 
   override def receive: Receive = init
-
 }

@@ -23,11 +23,11 @@ class BrokerActor extends Actor
   import context._
 
   override def preStart(): Unit = {
+    log.debug("Initializing...")
     BrokerDatabase.initialize()
         .onComplete {
           case Success(_) =>
-            self ! "database initialized"
-            log.debug("Database initialized.")
+            self ! "initialized"
           case Failure(ex) =>
             log.error("Failed to initialize database: {}", ex)
         }
@@ -40,14 +40,14 @@ class BrokerActor extends Actor
   override def receive: Receive = init
 
   private def init: Receive = {
-    case "database initialized" if sender() == self =>
+    case "initialized" if sender() == self =>
       unstashAll()
       become(work)
-      log.debug("Switched to work mode")
+      log.debug("Successfully initialized and switched to work mode")
 
     case msg =>
       stash()
-      log.debug("Stashed {}", msg)
+      log.debug("Initializing... - stashed {}", msg)
   }
 
   private def work: Receive = {
@@ -59,18 +59,17 @@ class BrokerActor extends Actor
       log.debug("Subscribed {} to topic {}", sender(), topic)
 
     case evt: Event =>
+      log.debug("Received new event {}", evt)
+
       val publisher = sender()
       BrokerDatabase.persistEvent(evt)
           .andThen { case Success(_) =>
             publisher ! EventAck(evt.topic)
             subscriptions.byTopic(evt.topic).foreach { s => s ! evt }
           }
-      log.debug("Received new event {}", evt)
 
     case Terminated(subscriptionActor) =>
       subscriptions.unregister(subscriptionActor)
       log.debug("Unregistered SubscriptionActor {}", subscriptionActor)
   }
 }
-
-
