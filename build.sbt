@@ -29,7 +29,7 @@ lazy val pubsub = project
       h2database % Runtime
     ))
 
-lazy val broker = project
+lazy val broker = (project in file("sample/broker"))
   .settings(
     commonSettings,
 
@@ -44,7 +44,7 @@ lazy val broker = project
     ))
   .dependsOn(pubsub)
 
-lazy val subscriber = project
+lazy val subscriber = (project in file("sample/subscriber"))
   .settings(
     commonSettings,
 
