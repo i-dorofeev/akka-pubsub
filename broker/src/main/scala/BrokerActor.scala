@@ -1,5 +1,5 @@
 import BrokerActor.{Event, EventAck, Subscribe}
-import akka.actor.{Actor, Props, Stash, Terminated}
+import akka.actor.{Actor, ActorLogging, Props, Stash, Terminated}
 
 import scala.util.{Failure, Success}
 
@@ -12,7 +12,9 @@ object BrokerActor {
   def props(): Props = Props(new BrokerActor())
 }
 
-class BrokerActor extends Actor with Stash {
+class BrokerActor extends Actor
+  with Stash
+  with ActorLogging {
 
   private val subscriptions = new Subscriptions
 
@@ -23,9 +25,9 @@ class BrokerActor extends Actor with Stash {
         .onComplete {
           case Success(_) =>
             self ! "database initialized"
-            println("Database initialized")
+            log.debug("Database initialized.")
           case Failure(ex) =>
-            println(s"Failed to initialize database: $ex")
+            log.error("Failed to initialize database: {}", ex)
         }
   }
 
@@ -39,11 +41,11 @@ class BrokerActor extends Actor with Stash {
     case "database initialized" if sender() == self =>
       unstashAll()
       become(work)
-      println("Switched to work mode")
+      log.debug("Switched to work mode")
 
     case msg =>
       stash()
-      println(s"Stashed $msg")
+      log.debug("Stashed {}", msg)
   }
 
   private def work: Receive = {
@@ -52,7 +54,7 @@ class BrokerActor extends Actor with Stash {
       subscriptions.register(topic, subscriptionActor)
       watch(subscriptionActor)
 
-      println(s"Subscribed $sender() to topic $topic")
+      log.debug("Subscribed {} to topic {}", sender(), topic)
 
     case evt: Event =>
       val publisher = sender()
@@ -61,11 +63,11 @@ class BrokerActor extends Actor with Stash {
             publisher ! EventAck(evt.topic)
             subscriptions.byTopic(evt.topic).foreach { s => s ! evt }
           }
-      println(s"Got new event ($evt)")
+      log.debug("Received new event {}", evt)
 
     case Terminated(subscriptionActor) =>
       subscriptions.unregister(subscriptionActor)
-      println(s"Unregistered SubscriptionActor $subscriptionActor")
+      log.debug("Unregistered SubscriptionActor {}", subscriptionActor)
   }
 }
 

@@ -1,9 +1,9 @@
 import BrokerActor.{Event, Subscribe}
-import akka.actor.{Actor, RootActorPath}
+import akka.actor.{Actor, ActorLogging, RootActorPath}
 import akka.cluster.Cluster
 import akka.cluster.ClusterEvent._
 
-class SubscriberActor extends Actor {
+class SubscriberActor extends Actor with ActorLogging {
 
   val cluster = Cluster(context.system)
 
@@ -20,10 +20,10 @@ class SubscriberActor extends Actor {
     case MemberUp(member) =>
       context.actorSelection(RootActorPath(member.address) / "user" / "broker") ! Subscribe("publisher", 0)
 
-    case Event(topic, _, payload) =>
-      println(s"Subscriber received event($topic - $payload)")
+    case evt: Event =>
+      log.info("Subscriber received {}", evt)
 
-    case evt =>
-      println(s"SubscriberActor received: $evt")
+    case msg =>
+      log.debug("Subscriber received {}", msg)
   }
 }

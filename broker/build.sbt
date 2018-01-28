@@ -8,12 +8,15 @@ resolvers += Resolver.jcenterRepo
 
 // akka
 libraryDependencies ++= {
-  val akkaVersion = "2.5.9"
+  def akka(moduleName: String): ModuleID = "com.typesafe.akka" %% ("akka-" + moduleName) % "2.5.9"
 
   Seq(
-    "com.typesafe.akka" %% "akka-actor" % akkaVersion,
-    "com.typesafe.akka" %% "akka-cluster" % akkaVersion,
-    "com.typesafe.akka" %% "akka-testkit" % akkaVersion % Test,
+    akka("actor"),
+    akka("cluster"),
+    akka("slf4j"),
+    akka("testkit") % Test,
+
+    "ch.qos.logback" % "logback-classic" % "1.2.3",
 
     "org.scalactic" %% "scalactic" % "3.0.4",
     "org.scalatest" %% "scalatest" % "3.0.4" % Test

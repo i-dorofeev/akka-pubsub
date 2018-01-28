@@ -1,14 +1,14 @@
 import BrokerActor.{Event, Subscribe}
-import akka.actor.{Actor, ActorRef}
+import akka.actor.{Actor, ActorLogging, ActorRef}
 
-class SubscriberActor(val broker: ActorRef) extends Actor {
+class SubscriberActor(val broker: ActorRef) extends Actor with ActorLogging {
 
   override def preStart(): Unit = {
     broker ! Subscribe("publisher", 0)
   }
 
   override def receive: Receive = {
-    case Event(topic, _, payload) =>
-      println(s"Subscriber received event($topic - $payload)")
+    case evt: Event =>
+      log.debug("Received event {}", evt)
   }
 }
