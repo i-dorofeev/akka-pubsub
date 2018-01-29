@@ -1,10 +1,10 @@
 package pubsub
 
-import akka.actor.{Actor, ActorLogging, ActorRef, Props, Stash, Terminated}
+import akka.actor.{ActorRef, Props, Terminated}
 import pubsub.BrokerActor.Event
 import pubsub.SubscriptionActor.SubscriptionAck
 
-import scala.util.{Failure, Success}
+import scala.concurrent.Future
 
 object SubscriptionActor {
 
@@ -14,25 +14,15 @@ object SubscriptionActor {
     Props(new SubscriptionActor(subscriber, topic, eventId))
 }
 
-class SubscriptionActor(val subscriber: ActorRef, val topic: String, var eventId: Int) extends Actor
-  with Stash
-  with ActorLogging {
+class SubscriptionActor(val subscriber: ActorRef, val topic: String, var eventId: Int) extends InitializingActor {
 
   import context._
 
-  override def preStart(): Unit = {
-    log.debug("Initializing...")
-
+  override def init: Future[Unit] = {
     subscriber ! SubscriptionAck(self)
     context.watch(subscriber)
 
     BrokerDatabase.fetchEvents(topic, eventId).foreach(forward)
-      .onComplete {
-        case Success(_) =>
-          self ! "initialized"
-        case Failure(ex) =>
-          log.error("Failed to initialize subscription", ex)
-      }
   }
 
   private def forward(evt: Event): Unit = {
@@ -40,18 +30,7 @@ class SubscriptionActor(val subscriber: ActorRef, val topic: String, var eventId
     subscriber ! evt
   }
 
-  private def init: Receive = {
-    case "initialized" if sender() == self =>
-      unstashAll()
-      become(work)
-      log.debug("Successfully initialized and switched to work mode")
-
-    case msg =>
-      stash()
-      log.debug("Initializing... - stashed {}", msg)
-  }
-
-  private def work: Receive = {
+  override def working: Receive = {
     case evt: Event =>
       forward(evt)
 
@@ -59,6 +38,4 @@ class SubscriptionActor(val subscriber: ActorRef, val topic: String, var eventId
       context.stop(self)
       log.debug("Subscriber {} terminated. Subscription cancelled", subscriber)
   }
-
-  override def receive: Receive = init
 }

@@ -1,9 +1,10 @@
 package pubsub
 
-import akka.actor.{Actor, ActorLogging, Props, Stash, Terminated}
+import akka.actor.{ActorLogging, Props, Stash, Terminated}
 import pubsub.BrokerActor.{Event, EventAck, Subscribe}
 
-import scala.util.{Failure, Success}
+import scala.concurrent.Future
+import scala.util.Success
 
 object BrokerActor {
 
@@ -14,7 +15,7 @@ object BrokerActor {
   def props(): Props = Props(new BrokerActor())
 }
 
-class BrokerActor extends Actor
+class BrokerActor extends InitializingActor
   with Stash
   with ActorLogging {
 
@@ -22,35 +23,10 @@ class BrokerActor extends Actor
 
   import context._
 
-  override def preStart(): Unit = {
-    log.debug("Initializing...")
-    BrokerDatabase.initialize()
-        .onComplete {
-          case Success(_) =>
-            self ! "initialized"
-          case Failure(ex) =>
-            log.error("Failed to initialize database: {}", ex)
-        }
-  }
+  override def init: Future[Unit] = BrokerDatabase.initialize()
+  override def postStop: Unit = BrokerDatabase.shutdown()
 
-  override def postStop(): Unit = {
-    BrokerDatabase.shutdown()
-  }
-
-  override def receive: Receive = init
-
-  private def init: Receive = {
-    case "initialized" if sender() == self =>
-      unstashAll()
-      become(work)
-      log.debug("Successfully initialized and switched to work mode")
-
-    case msg =>
-      stash()
-      log.debug("Initializing... - stashed {}", msg)
-  }
-
-  private def work: Receive = {
+  override def working: Receive = {
     case Subscribe(topic, eventId) =>
       val subscriptionActor = actorOf(SubscriptionActor.props(sender(), topic, eventId))
       subscriptions.register(topic, subscriptionActor)
@@ -73,3 +49,5 @@ class BrokerActor extends Actor
       log.debug("Unregistered SubscriptionActor {}", subscriptionActor)
   }
 }
+
+
