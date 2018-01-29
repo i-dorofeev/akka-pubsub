@@ -1,7 +1,9 @@
-import pubsub.BrokerActor.{Event, Subscribe}
+package sample.subscriber
+
 import akka.actor.{Actor, ActorLogging, RootActorPath}
 import akka.cluster.Cluster
 import akka.cluster.ClusterEvent._
+import pubsub.BrokerActor.{Event, Subscribe}
 
 class SubscriberActor extends Actor with ActorLogging {
 
@@ -17,7 +19,9 @@ class SubscriberActor extends Actor with ActorLogging {
   }
 
   override def receive: Receive = {
-    case MemberUp(member) =>
+    case MemberUp(member) if member.hasRole("broker") =>
+      val brokerPath = RootActorPath(member.address) / "user" / "broker"
+      log.debug("{} is up. Subscribing to {}", member, brokerPath)
       context.actorSelection(RootActorPath(member.address) / "user" / "broker") ! Subscribe("publisher", 0)
 
     case evt: Event =>

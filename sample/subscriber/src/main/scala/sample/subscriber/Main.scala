@@ -1,3 +1,5 @@
+package sample.subscriber
+
 import akka.actor.{ActorSystem, Props}
 import akka.cluster.Cluster
 
