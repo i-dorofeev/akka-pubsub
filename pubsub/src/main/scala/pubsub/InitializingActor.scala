@@ -17,7 +17,7 @@ abstract class InitializingActor extends Actor
       case Success(_) =>
         self ! "initialized"
       case Failure(ex) =>
-        log.error("Failed to initialize: {}", ex)
+        self ! ex
     }
   }
 
@@ -26,6 +26,11 @@ abstract class InitializingActor extends Actor
       unstashAll()
       context.become(working)
       log.debug("Successfully initialized and switched to work mode")
+
+    case ex: Throwable if sender() == self =>
+      unstashAll()
+      context.become(failed)
+      log.error("Failed to initialize: {}", ex)
 
     case msg =>
       stash()
@@ -36,4 +41,5 @@ abstract class InitializingActor extends Actor
 
   def init: Future[Unit]
   def working: Receive
+  def failed: Receive = ???
 }

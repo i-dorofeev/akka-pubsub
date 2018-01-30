@@ -10,11 +10,11 @@ object SubscriptionActor {
 
   case class SubscriptionAck(subscription: ActorRef)
 
-  def props(subscriber: ActorRef, topic: String, eventId: Int): Props =
-    Props(new SubscriptionActor(subscriber, topic, eventId))
+  def props(db: BrokerDatabaseSchema, subscriber: ActorRef, topic: String, eventId: Int): Props =
+    Props(new SubscriptionActor(db, subscriber, topic, eventId))
 }
 
-class SubscriptionActor(val subscriber: ActorRef, val topic: String, var eventId: Int) extends InitializingActor {
+class SubscriptionActor(val db: BrokerDatabaseSchema, val subscriber: ActorRef, val topic: String, var eventId: Int) extends InitializingActor {
 
   import context._
 
@@ -22,7 +22,7 @@ class SubscriptionActor(val subscriber: ActorRef, val topic: String, var eventId
     subscriber ! SubscriptionAck(self)
     context.watch(subscriber)
 
-    BrokerDatabase.fetchEvents(topic, eventId).foreach(forward)
+    db.fetchEvents(topic, eventId).foreach(forward)
   }
 
   private def forward(evt: Event): Unit = {

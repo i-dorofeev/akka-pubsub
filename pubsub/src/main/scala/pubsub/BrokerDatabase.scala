@@ -1,12 +1,11 @@
 package pubsub
 
-import com.typesafe.config.ConfigFactory
+import com.typesafe.config.Config
 import slick.basic.DatabaseConfig
 import slick.jdbc.JdbcProfile
 
-object BrokerDatabase extends BrokerDatabaseSchema {
+class BrokerDatabase(val config: Config) extends BrokerDatabaseSchema {
 
-  private val config = ConfigFactory.load()
   private val dbConfig = config.getConfig("pubsub.broker")
   private val databaseConfig = DatabaseConfig.forConfig[JdbcProfile]("slick", dbConfig)
 
