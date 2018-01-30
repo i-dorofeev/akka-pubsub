@@ -1,20 +1,15 @@
 package pubsub
 
 import com.typesafe.config.ConfigFactory
+import slick.basic.DatabaseConfig
+import slick.jdbc.JdbcProfile
 
 object BrokerDatabase extends BrokerDatabaseSchema {
 
   private val config = ConfigFactory.load()
-  private val dbConfig = config.getConfig("pubsub.broker.db")
-  private val driver = dbConfig.getString("driver")
+  private val dbConfig = config.getConfig("pubsub.broker")
+  private val databaseConfig = DatabaseConfig.forConfig[JdbcProfile]("slick", dbConfig)
 
-  override val profile = {
-    driver match {
-      case "org.h2.Driver" => slick.jdbc.H2Profile
-    }
-  }
-
-  import profile.api.Database
-
-  override lazy val db: Database = Database.forConfig("", dbConfig)
+  override val profile = databaseConfig.profile
+  override val db = databaseConfig.db
 }
