@@ -5,6 +5,13 @@ import akka.actor.{Actor, ActorLogging, Stash}
 import scala.concurrent.Future
 import scala.util.{Failure, Success}
 
+/**
+  * Provides abstraction for actors that need to undergo
+  * non-trivial asynchronous initialization process.
+  *
+  * Defines three states:
+  *   - Initializing
+  */
 abstract class InitializingActor extends Actor
   with Stash
   with ActorLogging {
