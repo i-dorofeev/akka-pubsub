@@ -3,7 +3,7 @@ package sample.subscriber
 import akka.actor.{Actor, ActorLogging, RootActorPath}
 import akka.cluster.Cluster
 import akka.cluster.ClusterEvent._
-import pubsub.BrokerActor.{Event, Subscribe}
+import pubsub.old.BrokerActor.{Event, Subscribe}
 
 class SubscriberActor extends Actor with ActorLogging {
 

@@ -1,8 +1,8 @@
-package pubsub
+package pubsub.old
 
 import akka.actor.{Props, Terminated}
 import com.typesafe.config.{Config, ConfigFactory}
-import pubsub.BrokerActor.{Event, EventAck, ServiceUnavailable, Subscribe}
+import pubsub.old.BrokerActor.{Event, EventAck, ServiceUnavailable, Subscribe}
 
 import scala.concurrent.Future
 import scala.util.Success

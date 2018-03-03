@@ -1,4 +1,4 @@
-package pubsub
+package pubsub.old
 
 import akka.actor.{Actor, ActorLogging, Stash}
 

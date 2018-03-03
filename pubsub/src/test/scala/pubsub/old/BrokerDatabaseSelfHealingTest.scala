@@ -1,9 +1,10 @@
+package pubsub.old
+
 import akka.actor.ActorSystem
 import akka.testkit.{ImplicitSender, TestKit}
 import com.typesafe.config.{Config, ConfigFactory}
 import org.scalatest.{BeforeAndAfterAll, Matchers, WordSpecLike}
-import pubsub.BrokerActor
-import pubsub.BrokerActor.{Event, ServiceUnavailable}
+import pubsub.old.BrokerActor.{Event, ServiceUnavailable}
 
 class BrokerDatabaseSelfHealingTest extends TestKit(ActorSystem("BrokerDatabaseSelfHealingTest"))
   with ImplicitSender

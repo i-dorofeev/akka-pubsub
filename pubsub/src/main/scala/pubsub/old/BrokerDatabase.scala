@@ -1,4 +1,4 @@
-package pubsub
+package pubsub.old
 
 import com.typesafe.config.Config
 import slick.basic.DatabaseConfig

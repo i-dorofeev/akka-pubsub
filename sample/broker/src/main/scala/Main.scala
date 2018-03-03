@@ -1,6 +1,6 @@
 import akka.actor.{ActorSystem, Props}
 import akka.cluster.Cluster
-import pubsub.BrokerActor
+import pubsub.old.BrokerActor
 
 import scala.io.StdIn
 

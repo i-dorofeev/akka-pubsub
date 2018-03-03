@@ -1,6 +1,6 @@
-package pubsub
+package pubsub.old
 
-import pubsub.BrokerActor.Event
+import pubsub.old.BrokerActor.Event
 import slick.basic.DatabasePublisher
 import slick.jdbc.JdbcProfile
 

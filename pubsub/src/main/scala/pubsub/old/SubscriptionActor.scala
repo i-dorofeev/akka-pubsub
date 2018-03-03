@@ -1,8 +1,8 @@
-package pubsub
+package pubsub.old
 
 import akka.actor.{ActorRef, Props, Terminated}
-import pubsub.BrokerActor.Event
-import pubsub.SubscriptionActor.SubscriptionAck
+import pubsub.old.BrokerActor.Event
+import pubsub.old.SubscriptionActor.SubscriptionAck
 
 import scala.concurrent.Future
 

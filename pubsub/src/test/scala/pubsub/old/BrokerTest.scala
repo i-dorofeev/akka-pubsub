@@ -1,9 +1,10 @@
+package pubsub.old
+
 import akka.actor.ActorSystem
 import akka.testkit.{ImplicitSender, TestKit, TestProbe}
 import org.scalatest.{BeforeAndAfterAll, Matchers, WordSpecLike}
-import pubsub.BrokerActor
-import pubsub.BrokerActor.{Event, Subscribe}
-import pubsub.SubscriptionActor.SubscriptionAck
+import pubsub.old.BrokerActor.{Event, Subscribe}
+import pubsub.old.SubscriptionActor.SubscriptionAck
 
 import scala.concurrent.duration._
 

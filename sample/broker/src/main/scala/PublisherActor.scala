@@ -1,5 +1,5 @@
-import pubsub.BrokerActor.{Event, EventAck}
 import akka.actor.{Actor, ActorLogging, ActorRef}
+import pubsub.old.BrokerActor.{Event, EventAck}
 
 case class PublisherMessage(id: Int, value: String)
 
