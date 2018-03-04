@@ -40,10 +40,6 @@ class SubscriptionActor(val subscriber: ActorRef, val upstream: EventUpstream) e
 
   private val WaitingForEvents = new FSMActorState {}
 
-  override def initialState(): FSMActorState = Created
-
-  override def transition: PartialFunction[FSMActorState, FSMActorState] = {
-    case Created => CatchingUpWithUpstream
-    case CatchingUpWithUpstream => WaitingForEvents
-  }
+  import StateFlow._
+  override val stateFlow: StateFlow = Created >>: CatchingUpWithUpstream >>: WaitingForEvents
 }
