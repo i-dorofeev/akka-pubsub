@@ -2,12 +2,13 @@ package pubsub.old
 
 import akka.actor.ActorSystem
 import akka.testkit.{ImplicitSender, TestKit, TestProbe}
-import org.scalatest.{BeforeAndAfterAll, Matchers, WordSpecLike}
+import org.scalatest.{BeforeAndAfterAll, Ignore, Matchers, WordSpecLike}
 import pubsub.old.BrokerActor.{Event, Subscribe}
 import pubsub.old.SubscriptionActor.SubscriptionAck
 
 import scala.concurrent.duration._
 
+@Ignore
 class BrokerTest() extends TestKit(ActorSystem("BrokerTest"))
   with ImplicitSender
   with WordSpecLike
