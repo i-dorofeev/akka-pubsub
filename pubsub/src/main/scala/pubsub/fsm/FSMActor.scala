@@ -25,6 +25,7 @@ object FSMActorState {
 
 object StateFlow {
 
+  import scala.language.implicitConversions
   implicit def flowEnd(state: FSMActorState): StateFlow = new StateFlow(state, _ => None)
 }
 
@@ -44,32 +45,39 @@ class StateFlow(val state: FSMActorState, val nextState: FSMActorState => Option
     }
   }
 
-  def >>:(state: FSMActorState): StateFlow = new StateFlow(state, state => Some(this))
+  def >>:(state: FSMActorState): StateFlow = new StateFlow(state, _ => Some(this))
 }
 
 /**
+  * Enables an actor to define possible states which it may be in and
+  * state transition logic with an clear and easy-to-use API.
   *
+  * Separates state logic from transition logic. A state never knows where
+  * to go after leaving itself. Not only does it contributes to clean separation
+  * of concepts but it also allows reuse of same state definitions in different
+  * parts of state flow.
   */
 trait FSMActor extends Actor {
 
-  var currentFlow: StateFlow = _
+  private var currentFlow: StateFlow = _
 
-  val stateFlow: StateFlow
+  protected val stateFlow: StateFlow
 
-  override def preStart(): Unit = {
-    stateFlow.enter() match {
+  private def runFlow(launcher: () => Option[StateFlow]): Unit = {
+    launcher() match {
       case Some(state) => currentFlow = state
       case None => context.stop(self)
     }
   }
 
+  override def preStart(): Unit = runFlow(() => stateFlow.enter())
+
+  private val stay: PartialFunction[Any, StateActionResult] = { case _ => Stay }
+  private def handle: Any => StateActionResult = currentFlow.state.receive orElse stay
+
   override def receive: Receive = {
     case msg =>
-      val stay: PartialFunction[Any, StateActionResult] = { case _ => Stay }
-      val result = (currentFlow.state.receive orElse stay)(msg)
-      currentFlow.next(result) match {
-        case Some(state) => currentFlow = state
-        case None => context.stop(self)
-      }
+      val result = handle(msg)
+      runFlow(() => currentFlow.next(result))
   }
 }
