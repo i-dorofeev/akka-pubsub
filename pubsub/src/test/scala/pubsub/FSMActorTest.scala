@@ -2,7 +2,7 @@ package pubsub
 
 import akka.actor.{ActorRef, Props}
 import akka.testkit.TestProbe
-import org.scalatest.SequentialNestedSuiteExecution
+import org.scalatest.{Matchers, SequentialNestedSuiteExecution}
 import pubsub.fsm.FSMActorState.actionState
 import pubsub.fsm._
 
@@ -17,6 +17,7 @@ import pubsub.fsm._
   * messages indicating the current state of an actor.
   */
 class FSMActorTest extends BaseTestKit("FSMActorTest")
+  with Matchers
   with SequentialNestedSuiteExecution {
 
   /**
@@ -26,9 +27,15 @@ class FSMActorTest extends BaseTestKit("FSMActorTest")
   val watcher = TestProbe()
 
   /**
+    * Current state of the actor.
+    * State changes are propagated through a callback.
+    */
+  var fsmTestActorState: Option[String] = _
+
+  /**
     * FSM actor under test.
     */
-  val fsmTestActor: ActorRef = system.actorOf(Props(new FSMTestActor(watcher.ref)))
+  val fsmTestActor: ActorRef = system.actorOf(Props(new FSMTestActor(watcher.ref, name => fsmTestActorState = name)))
 
   watcher.watch(fsmTestActor)
 
@@ -37,6 +44,8 @@ class FSMActorTest extends BaseTestKit("FSMActorTest")
       watcher.expectMsg("state1.onEnter")
       watcher.expectMsg("state2.onEnter")
       watcher.expectMsg("state3.onEnter")
+
+      fsmTestActorState should be (Some("State3"))
     }
 
     "handle messages by State3 receiver" in {
@@ -55,22 +64,27 @@ class FSMActorTest extends BaseTestKit("FSMActorTest")
       watcher.expectMsg("leaving State3")
       watcher.expectMsg("state3.onExit")
       watcher.expectTerminated(fsmTestActor)
+
+      fsmTestActorState should be (None)
     }
   }
 }
 
-class FSMTestActor(watcher: ActorRef) extends FSMActor {
+class FSMTestActor(watcher: ActorRef, onStateChangedCallback: Option[String] => Unit = _ => Unit) extends FSMActor {
+
+  override protected def onStateChanged(newState: Option[String]): Unit = onStateChangedCallback(newState)
 
   /**
     * Invokes an action on entering the state and immediately leaves the state.
     */
-  val State1: FSMActorState = actionState { () => watcher ! "state1.onEnter" }
+  val State1: FSMActorState = actionState("State1") { () => watcher ! "state1.onEnter" }
 
   /**
     * Invokes an action on entering the state and immediately leaves the state.
     * A verbose version of an actionState.
     */
   val State2: FSMActorState = new FSMActorState {
+    override val name: String = "State2"
     override def onEnter(): StateActionResult = {
       watcher ! "state2.onEnter"
       Leave
@@ -84,24 +98,16 @@ class FSMTestActor(watcher: ActorRef) extends FSMActor {
     * cause the actor to leave the state. After leaving the state
     * onExit handler is invoked.
     */
-  val State3: FSMActorState = new FSMActorState {
-    override def onEnter(): StateActionResult = {
-      watcher ! "state3.onEnter"
-      Stay
-    }
+  val State3: FSMActorState = FSMActorState("State3",
+    onEnterCallback = { () => watcher ! "state3.onEnter"; Stay },
 
-    override def receive: PartialFunction[Any, StateActionResult] = {
-      case "stay in State3" =>
-        watcher ! "staying in State3"
-        Stay
+    receiveFunc = {
+      case "stay in State3" => watcher ! "staying in State3"; Stay
+      case "leave State3" => watcher ! "leaving State3"; Leave
+    },
 
-      case "leave State3" =>
-        watcher ! "leaving State3"
-        Leave
-    }
-
-    override def onExit(): Unit = watcher ! "state3.onExit"
-  }
+    onExitCallback = { () => watcher ! "state3.onExit" }
+  )
 
   import StateFlow._
 
@@ -111,3 +117,4 @@ class FSMTestActor(watcher: ActorRef) extends FSMActor {
     */
   override val stateFlow: StateFlow = State1 >>: State2 >>: State3
 }
+

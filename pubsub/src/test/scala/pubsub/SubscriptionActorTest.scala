@@ -16,28 +16,17 @@ class StubEventUpstream extends EventUpstream {
   def complete(): Unit = subscriber.foreach(_.onComplete())
 }
 
-class SubscriptionActorTest extends TestKit(ActorSystem("SubscriptionActorTest"))
-  with ImplicitSender
-  with WordSpecLike
+class SubscriptionActorTest extends BaseTestKit("SubscriptionActorTest")
   with Matchers
-  with BeforeAndAfterAll
   with SequentialNestedSuiteExecution {
-
-  override def afterAll: Unit = {
-    TestKit.shutdownActorSystem(system)
-  }
 
   val subscriberProbe = TestProbe("subscriberProbe")
 
-  var subscriptionRef: ActorRef = _
+  val eventUpstream = new StubEventUpstream()
+  val subscriptionRef: ActorRef = system.actorOf(SubscriptionActor.props(subscriberProbe.ref, eventUpstream))
 
   "A subscription actor" when {
     "created" must {
-      val eventUpstream = new StubEventUpstream()
-
-      "init" in {
-        subscriptionRef = system.actorOf(SubscriptionActor.props(subscriberProbe.ref, eventUpstream))
-      }
 
       "send SubscribeAck to the subscriber" in {
         subscriberProbe.expectMsg(SubscribeAck(subscriptionRef))
@@ -51,7 +40,7 @@ class SubscriptionActorTest extends TestKit(ActorSystem("SubscriptionActorTest")
         subscriberProbe.expectMsg(EventNotification("event2"))
       }
 
-      "not forward events from topic to the subscriber" in {
+      "not accept and forward events from topic to the subscriber" in {
         subscriptionRef ! EventNotification("event notification from topic")
         subscriberProbe.expectNoMessage(100 millis)
       }

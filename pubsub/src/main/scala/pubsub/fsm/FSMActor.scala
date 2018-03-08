@@ -8,6 +8,12 @@ object Leave extends StateActionResult
 
 trait FSMActorState {
 
+  /**
+    * The name of the state.
+    * Can be used for testing or debugging purposes.
+    */
+  val name: String = this.toString
+
   def onEnter(): StateActionResult = Stay
   def receive: PartialFunction[Any, StateActionResult] = { case _ => Stay }
   def onExit(): Unit = ()
@@ -15,11 +21,23 @@ trait FSMActorState {
 }
 
 object FSMActorState {
-  def actionState(action: () => Unit): FSMActorState = new FSMActorState {
+  def actionState(stateName: String)(action: () => Unit): FSMActorState = new FSMActorState {
+    override val name: String = stateName
     override def onEnter(): StateActionResult = {
       action()
       Leave
     }
+  }
+
+  def apply(stateName: String,
+            onEnterCallback: () => StateActionResult = { () => Leave },
+            receiveFunc: PartialFunction[Any, StateActionResult],
+            onExitCallback: () => Unit = { () => Unit }
+         ): FSMActorState = new FSMActorState {
+    override val name: String = stateName
+    override def onEnter(): StateActionResult = { onEnterCallback() }
+    override def receive: PartialFunction[Any, StateActionResult] = receiveFunc
+    override def onExit(): Unit = { onExitCallback() }
   }
 }
 
@@ -63,16 +81,30 @@ trait FSMActor extends Actor {
 
   protected val stateFlow: StateFlow
 
+  /**
+    * Called when state changes.
+    * Can be used to track state changes outside the actor for testing and debugging purposes.
+    * @param newState Name of the new state.
+    */
+  protected def onStateChanged(newState: Option[String]): Unit = ()
+
   private def runFlow(launcher: () => Option[StateFlow]): Unit = {
     launcher() match {
-      case Some(state) => currentFlow = state
-      case None => context.stop(self)
+      case Some(state) =>
+        currentFlow = state
+        onStateChanged(Some(currentFlow.state.name))
+
+      case None =>
+        context.stop(self)
+        onStateChanged(None)
     }
   }
 
   override def preStart(): Unit = runFlow(() => stateFlow.enter())
 
   private val stay: PartialFunction[Any, StateActionResult] = { case _ => Stay }
+
+  // unhandled messages leave the actor in the current state
   private def handle: Any => StateActionResult = currentFlow.state.receive orElse stay
 
   override def receive: Receive = {

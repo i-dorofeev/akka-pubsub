@@ -27,7 +27,11 @@ lazy val pubsub = project
       "org.scalatest" %% "scalatest" % "3.0.4" % Test,
 
       h2database % Runtime
-    ))
+    ),
+
+    // enables ordered output for scalatest tests
+    logBuffered in Test := false
+  )
 
 lazy val broker = (project in file("sample/broker"))
   .settings(
