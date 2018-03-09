@@ -14,6 +14,7 @@ lazy val pubsub = project
 
     libraryDependencies ++= Seq(
       akka("actor"),
+      akka("stream"),
 
       "com.typesafe.slick" %% "slick" % "3.2.1",
       "com.typesafe.slick" %% "slick-hikaricp" % "3.2.1",
