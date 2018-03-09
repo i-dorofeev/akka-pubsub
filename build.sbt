@@ -18,6 +18,8 @@ lazy val pubsub = project
       "com.typesafe.slick" %% "slick" % "3.2.1",
       "com.typesafe.slick" %% "slick-hikaricp" % "3.2.1",
 
+      "com.typesafe.scala-logging" %% "scala-logging" % "3.8.0",
+
       // Tests
       akka("slf4j") % Test,
       akka("testkit") % Test,
