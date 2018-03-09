@@ -6,16 +6,28 @@ sealed trait StateActionResult
 object Stay extends StateActionResult
 object Leave extends StateActionResult
 
+/** Defines behaviour of an FSMActor state. */
 trait FSMActorState {
 
-  /**
-    * The name of the state.
+  /** The name of the state.
+    *
     * Can be used for testing or debugging purposes.
     */
   val name: String = this.toString
 
+  /** Called when entering the state.
+    * @return Either [[Stay]] to proceed with the state or [[Leave]] to leave the state immediately.
+    */
   def onEnter(): StateActionResult = Stay
+
+  /** Defines the message handler function for this state.
+    *
+    * For every message the handler should return either [[Stay]] to proceed with the state or [[Leave]] to leave
+    * the state immediately.
+    */
   def receive: PartialFunction[Any, StateActionResult] = { case _ => Stay }
+
+  /** Called when leaving the state. */
   def onExit(): Unit = ()
 
 }
@@ -47,6 +59,11 @@ object StateFlow {
   implicit def flowEnd(state: FSMActorState): StateFlow = new StateFlow(state, _ => None)
 }
 
+/**
+  * Definition of state flow.
+  * @param state Initial state
+  * @param nextState Function computing the next state
+  */
 case class StateFlow(state: FSMActorState, nextState: FSMActorState => Option[StateFlow]) {
   def >>:(state: FSMActorState): StateFlow = new StateFlow(state, _ => Some(this))
 }
@@ -64,6 +81,9 @@ trait FSMActor extends Actor with ActorLogging {
 
   private var currentFlow: StateFlow = _
 
+  /**
+    * Definition of state flow for this FSMActor
+    */
   protected val stateFlow: StateFlow
 
   /**
