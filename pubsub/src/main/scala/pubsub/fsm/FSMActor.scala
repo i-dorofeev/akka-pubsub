@@ -1,6 +1,6 @@
 package pubsub.fsm
 
-import akka.actor.Actor
+import akka.actor.{Actor, ActorLogging}
 
 sealed trait StateActionResult
 object Stay extends StateActionResult
@@ -30,7 +30,7 @@ object FSMActorState {
   }
 
   def apply(stateName: String,
-            onEnterCallback: () => StateActionResult = { () => Leave },
+            onEnterCallback: () => StateActionResult = { () => Stay },
             receiveFunc: PartialFunction[Any, StateActionResult],
             onExitCallback: () => Unit = { () => Unit }
          ): FSMActorState = new FSMActorState {
@@ -47,22 +47,7 @@ object StateFlow {
   implicit def flowEnd(state: FSMActorState): StateFlow = new StateFlow(state, _ => None)
 }
 
-class StateFlow(val state: FSMActorState, val nextState: FSMActorState => Option[StateFlow]) {
-
-  def enter(): Option[StateFlow] = {
-    next(state.onEnter())
-  }
-
-  def next(result: StateActionResult = Leave): Option[StateFlow] = {
-    result match {
-      case Leave =>
-        state.onExit()
-        nextState(state).flatMap(_.enter())
-      case Stay =>
-        Some(this)
-    }
-  }
-
+case class StateFlow(state: FSMActorState, nextState: FSMActorState => Option[StateFlow]) {
   def >>:(state: FSMActorState): StateFlow = new StateFlow(state, _ => Some(this))
 }
 
@@ -75,7 +60,7 @@ class StateFlow(val state: FSMActorState, val nextState: FSMActorState => Option
   * of concepts but it also allows reuse of same state definitions in different
   * parts of state flow.
   */
-trait FSMActor extends Actor {
+trait FSMActor extends Actor with ActorLogging {
 
   private var currentFlow: StateFlow = _
 
@@ -90,17 +75,22 @@ trait FSMActor extends Actor {
 
   private def runFlow(launcher: () => Option[StateFlow]): Unit = {
     launcher() match {
-      case Some(state) =>
-        currentFlow = state
+      case Some(flow) if !flow.equals(currentFlow) =>
+        currentFlow = flow
+        log.debug(s"Entered flow ${currentFlow.state.name}")
         onStateChanged(Some(currentFlow.state.name))
+
+      case Some(flow) if flow.equals(currentFlow) =>
+        // do nothing
 
       case None =>
         context.stop(self)
+        log.debug(s"Stopped FSM")
         onStateChanged(None)
     }
   }
 
-  override def preStart(): Unit = runFlow(() => stateFlow.enter())
+  override def preStart(): Unit = runFlow(() => enter(stateFlow))
 
   private val stay: PartialFunction[Any, StateActionResult] = { case _ => Stay }
 
@@ -110,6 +100,26 @@ trait FSMActor extends Actor {
   override def receive: Receive = {
     case msg =>
       val result = handle(msg)
-      runFlow(() => currentFlow.next(result))
+      runFlow(() => next(currentFlow, result))
   }
+
+  private def enter(flow: StateFlow): Option[StateFlow] = {
+    log.debug(s"Entering state ${flow.state.name}")
+    next(flow, flow.state.onEnter())
+  }
+
+  private def next(flow: StateFlow, result: StateActionResult = Leave): Option[StateFlow] = {
+    result match {
+      case Leave =>
+        log.debug(s"Leaving state ${flow.state.name}")
+        flow.state.onExit()
+        flow.nextState(flow.state).flatMap { nextState => enter(nextState) }
+      case Stay =>
+        Some(flow)
+    }
+  }
+}
+
+object FSMActor {
+  type OnStateChangedCallback = Option[String] => Unit
 }

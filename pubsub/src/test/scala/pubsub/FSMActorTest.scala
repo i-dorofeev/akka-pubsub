@@ -2,6 +2,7 @@ package pubsub
 
 import akka.actor.{ActorRef, Props}
 import akka.testkit.TestProbe
+import com.typesafe.scalalogging.Logger
 import org.scalatest.{Matchers, SequentialNestedSuiteExecution}
 import pubsub.fsm.FSMActorState.actionState
 import pubsub.fsm._
@@ -35,7 +36,7 @@ class FSMActorTest extends BaseTestKit("FSMActorTest")
   /**
     * FSM actor under test.
     */
-  val fsmTestActor: ActorRef = system.actorOf(Props(new FSMTestActor(watcher.ref, name => fsmTestActorState = name)))
+  val fsmTestActor: ActorRef = system.actorOf(Props(new FSMTestActor(watcher.ref, name => fsmTestActorState = name)), "FSMTestActor")
 
   watcher.watch(fsmTestActor)
 
