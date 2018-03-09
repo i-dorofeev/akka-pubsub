@@ -1,9 +1,10 @@
 package pubsub
 
-import akka.actor.{ActorRef, ActorSystem}
-import akka.testkit.{ImplicitSender, TestKit, TestProbe}
+import akka.actor.ActorRef
+import akka.testkit.TestProbe
 import org.reactivestreams.Subscriber
-import org.scalatest.{BeforeAndAfterAll, Matchers, SequentialNestedSuiteExecution, WordSpecLike}
+import org.scalatest.concurrent.Eventually
+import org.scalatest.{Matchers, SequentialNestedSuiteExecution}
 import pubsub.SubscriptionActor.EventUpstream
 
 import scala.concurrent.duration._
@@ -18,21 +19,31 @@ class StubEventUpstream extends EventUpstream {
 
 class SubscriptionActorTest extends BaseTestKit("SubscriptionActorTest")
   with Matchers
+  with Eventually
   with SequentialNestedSuiteExecution {
 
   val subscriberProbe = TestProbe("subscriberProbe")
 
+  var currentState: Option[String] = _
+
   val eventUpstream = new StubEventUpstream()
-  val subscriptionRef: ActorRef = system.actorOf(SubscriptionActor.props(subscriberProbe.ref, eventUpstream))
+  val subscriptionRef: ActorRef = system.actorOf(SubscriptionActor.props(subscriberProbe.ref, eventUpstream, state => currentState = state))
 
   "A subscription actor" when {
     "created" must {
 
-      "send SubscribeAck to the subscriber" in {
+      "send SubscribeAck to the subscriber and " in {
         subscriberProbe.expectMsg(SubscribeAck(subscriptionRef))
       }
 
-      "catch up with event upstream" in {
+      "start catching up with event upstream" in {
+        currentState should be(Some("CatchingUpWithUpstream"))
+      }
+    }
+
+    "catching up with upstream" must {
+
+      "forward events from the upstream to the subscriber" in {
         eventUpstream.push(EventNotification("event1"))
         subscriberProbe.expectMsg(EventNotification("event1"))
 
@@ -45,8 +56,9 @@ class SubscriptionActorTest extends BaseTestKit("SubscriptionActorTest")
         subscriberProbe.expectNoMessage(100 millis)
       }
 
-      "exitState" in {
+      "start waiting for events when caught with event upstream" in {
         eventUpstream.complete()
+        eventually { currentState should be (Some("WaitingForEvents")) }
       }
     }
   }
