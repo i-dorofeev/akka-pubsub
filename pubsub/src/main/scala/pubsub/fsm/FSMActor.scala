@@ -59,8 +59,7 @@ object StateFlow {
   implicit def flowEnd(state: FSMActorState): StateFlow = new StateFlow(state, _ => None)
 }
 
-/**
-  * Definition of state flow.
+/** Definition of state flow.
   * @param state Initial state
   * @param nextState Function computing the next state
   */
@@ -68,8 +67,7 @@ case class StateFlow(state: FSMActorState, nextState: FSMActorState => Option[St
   def >>:(state: FSMActorState): StateFlow = new StateFlow(state, _ => Some(this))
 }
 
-/**
-  * Enables an actor to define possible states which it may be in and
+/** Enables an actor to define possible states which it may be in and
   * state transition logic with an clear and easy-to-use API.
   *
   * Separates state logic from transition logic. A state never knows where
@@ -81,13 +79,11 @@ trait FSMActor extends Actor with ActorLogging {
 
   private var currentFlow: StateFlow = _
 
-  /**
-    * Definition of state flow for this FSMActor
-    */
+  /** Definition of state flow for this FSMActor */
   protected val stateFlow: StateFlow
 
-  /**
-    * Called when state changes.
+  /** Called when state changes.
+    *
     * Can be used to track state changes outside the actor for testing and debugging purposes.
     * @param newState Name of the new state.
     */
