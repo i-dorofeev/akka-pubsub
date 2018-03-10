@@ -28,15 +28,9 @@ class FSMActorTest extends BaseTestKit("FSMActorTest")
   val watcher = TestProbe()
 
   /**
-    * Current state of the actor.
-    * State changes are propagated through a callback.
-    */
-  var fsmTestActorState: Option[String] = _
-
-  /**
     * FSM actor under test.
     */
-  val fsmTestActor: ActorRef = system.actorOf(Props(new FSMTestActor(watcher.ref, name => fsmTestActorState = name)), "FSMTestActor")
+  val fsmTestActor: ActorRef = system.actorOf(Props(new FSMTestActor(watcher.ref, name => watcher.ref ! name)), "FSMTestActor")
 
   watcher.watch(fsmTestActor)
 
@@ -46,7 +40,7 @@ class FSMActorTest extends BaseTestKit("FSMActorTest")
       watcher.expectMsg("state2.onEnter")
       watcher.expectMsg("state3.onEnter")
 
-      fsmTestActorState should be (Some("State3"))
+      watcher.expectMsg(Some("State3"))
     }
 
     "handle messages by State3 receiver" in {
@@ -64,9 +58,9 @@ class FSMActorTest extends BaseTestKit("FSMActorTest")
       fsmTestActor ! "leave State3"
       watcher.expectMsg("leaving State3")
       watcher.expectMsg("state3.onExit")
-      watcher.expectTerminated(fsmTestActor)
 
-      fsmTestActorState should be (None)
+      watcher.expectMsg(None)
+      watcher.expectTerminated(fsmTestActor)
     }
   }
 }
@@ -118,4 +112,3 @@ class FSMTestActor(watcher: ActorRef, onStateChangedCallback: Option[String] => 
     */
   override val stateFlow: StateFlow = State1 >>: State2 >>: State3
 }
-

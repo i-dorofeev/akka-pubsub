@@ -5,7 +5,6 @@ import akka.actor.ActorRef
 import akka.stream.{ActorMaterializer, Materializer, OverflowStrategy}
 import akka.stream.scaladsl.{Sink, Source, SourceQueueWithComplete}
 import akka.testkit.TestProbe
-import org.scalatest.concurrent.Eventually
 import org.scalatest.{Matchers, SequentialNestedSuiteExecution}
 import pubsub.EventStore.EventUpstream
 
@@ -22,12 +21,10 @@ class StubEventStore(val sourceByTopic: PartialFunction[String, Source[String, N
 
 class SubscriptionActorTest extends BaseTestKit("SubscriptionActorTest")
   with Matchers
-  with Eventually
   with SequentialNestedSuiteExecution {
 
   val subscriberProbe = TestProbe("subscriberProbe")
-
-  var currentState: Option[String] = _
+  val stateWatcher = TestProbe("stateWatcher")
 
   implicit val materializer: ActorMaterializer = ActorMaterializer()
 
@@ -42,7 +39,7 @@ class SubscriptionActorTest extends BaseTestKit("SubscriptionActorTest")
   })
 
   val subscriptionRef: ActorRef = system.actorOf(
-    SubscriptionActor.props(subscriberProbe.ref, "testTopic", 0, eventStore, state => currentState = state))
+    SubscriptionActor.props(subscriberProbe.ref, "testTopic", 0, eventStore, state => stateWatcher.ref ! state))
 
   "A subscription actor" when {
     "created" must {
@@ -52,7 +49,7 @@ class SubscriptionActorTest extends BaseTestKit("SubscriptionActorTest")
       }
 
       "start catching up with event upstream" in {
-        eventually { currentState should be(Some("CatchingUpWithUpstream")) }
+        stateWatcher.expectMsg(Some("CatchingUpWithUpstream"))
       }
     }
 
@@ -74,7 +71,7 @@ class SubscriptionActorTest extends BaseTestKit("SubscriptionActorTest")
 
       "start waiting for events when caught with event upstream" in {
         manualEventUpstream.complete()
-        eventually { currentState should be (Some("WaitingForEvents")) }
+        stateWatcher.expectMsg(Some("WaitingForEvents"))
       }
     }
 
@@ -90,7 +87,7 @@ class SubscriptionActorTest extends BaseTestKit("SubscriptionActorTest")
         subscriptionRef ! EventNotification(someEventOrdinal, "event10")
 
         subscriberProbe.expectNoMessage(100 millis)
-        eventually { currentState should be (Some("CatchingUpWithUpstream")) }
+        stateWatcher.expectMsg(Some("CatchingUpWithUpstream"))
       }
     }
   }

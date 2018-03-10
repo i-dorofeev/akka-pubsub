@@ -30,6 +30,8 @@ trait FSMActorState {
 
   /** Called when leaving the state. */
   def onExit(): Unit = ()
+
+  override def toString: String = name
 }
 
 object FSMActorState {
