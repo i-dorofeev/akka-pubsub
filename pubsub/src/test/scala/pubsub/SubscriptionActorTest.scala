@@ -1,20 +1,23 @@
 package pubsub
 
+import akka.NotUsed
 import akka.actor.ActorRef
+import akka.stream.{ActorMaterializer, Materializer, OverflowStrategy}
+import akka.stream.scaladsl.{Sink, Source, SourceQueueWithComplete}
 import akka.testkit.TestProbe
-import org.reactivestreams.Subscriber
 import org.scalatest.concurrent.Eventually
 import org.scalatest.{Matchers, SequentialNestedSuiteExecution}
-import pubsub.SubscriptionActor.EventUpstream
+import pubsub.EventStore.EventUpstream
 
 import scala.concurrent.duration._
+import scala.language.postfixOps
 
-class StubEventUpstream extends EventUpstream {
-  var subscriber: Option[Subscriber[_ >: EventNotification]] = None
-  override def subscribe(s: Subscriber[_ >: EventNotification]): Unit = { subscriber = Some(s) }
+class StubEventStore(val sourceByTopic: PartialFunction[String, Source[String, NotUsed]])(implicit materializer: Materializer) extends EventStore {
 
-  def push(eventNotification: EventNotification): Unit = subscriber.foreach(_.onNext(eventNotification))
-  def complete(): Unit = subscriber.foreach(_.onComplete())
+  override def eventUpstream(topic: String, startFrom: Long): EventUpstream = sourceByTopic(topic)
+      .zipWithIndex
+      .map { zip => EventNotification(ordinal = zip._2 + startFrom, payload = zip._1) }
+      .runWith(Sink.asPublisher(fanout = false))
 }
 
 class SubscriptionActorTest extends BaseTestKit("SubscriptionActorTest")
@@ -26,8 +29,20 @@ class SubscriptionActorTest extends BaseTestKit("SubscriptionActorTest")
 
   var currentState: Option[String] = _
 
-  val eventUpstream = new StubEventUpstream()
-  val subscriptionRef: ActorRef = system.actorOf(SubscriptionActor.props(subscriberProbe.ref, eventUpstream, state => currentState = state))
+  implicit val materializer: ActorMaterializer = ActorMaterializer()
+
+  var manualEventUpstream: SourceQueueWithComplete[String] = _
+
+  val eventStore = new StubEventStore({
+    case "testTopic" =>
+      val bufferSize = 1
+      val (queue, source) = Source.queue[String](bufferSize, OverflowStrategy.fail).preMaterialize()
+      manualEventUpstream = queue
+      source
+  })
+
+  val subscriptionRef: ActorRef = system.actorOf(
+    SubscriptionActor.props(subscriberProbe.ref, "testTopic", 0, eventStore, state => currentState = state))
 
   "A subscription actor" when {
     "created" must {
@@ -37,28 +52,45 @@ class SubscriptionActorTest extends BaseTestKit("SubscriptionActorTest")
       }
 
       "start catching up with event upstream" in {
-        currentState should be(Some("CatchingUpWithUpstream"))
+        eventually { currentState should be(Some("CatchingUpWithUpstream")) }
       }
     }
 
     "catching up with upstream" must {
 
       "forward events from the upstream to the subscriber" in {
-        eventUpstream.push(EventNotification("event1"))
-        subscriberProbe.expectMsg(EventNotification("event1"))
+        manualEventUpstream.offer("event0")
+        subscriberProbe.expectMsg(EventNotification(0, "event0"))
 
-        eventUpstream.push(EventNotification("event2"))
-        subscriberProbe.expectMsg(EventNotification("event2"))
+        manualEventUpstream.offer("event1")
+        subscriberProbe.expectMsg(EventNotification(1, "event1"))
       }
 
       "not accept and forward events from topic to the subscriber" in {
-        subscriptionRef ! EventNotification("event notification from topic")
+        val someEventOrdinal = 3
+        subscriptionRef ! EventNotification(someEventOrdinal, "event notification from topic")
         subscriberProbe.expectNoMessage(100 millis)
       }
 
       "start waiting for events when caught with event upstream" in {
-        eventUpstream.complete()
+        manualEventUpstream.complete()
         eventually { currentState should be (Some("WaitingForEvents")) }
+      }
+    }
+
+    "waiting for events" must {
+      "forward the event to the subscriber if it hasn't fallen behind the upstream" in {
+        val eventNotification = EventNotification(3, "event3")
+        subscriptionRef ! eventNotification
+        subscriberProbe.expectMsg(eventNotification)
+      }
+
+      "start catching up with event upstream if it has fallen behind the upstream" in {
+        val someEventOrdinal = 10
+        subscriptionRef ! EventNotification(someEventOrdinal, "event10")
+
+        subscriberProbe.expectNoMessage(100 millis)
+        eventually { currentState should be (Some("CatchingUpWithUpstream")) }
       }
     }
   }

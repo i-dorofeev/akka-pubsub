@@ -1,6 +1,7 @@
 package pubsub.fsm
 
 import akka.actor.{Actor, ActorLogging}
+import pubsub.fsm.StateFlow.LoopState
 
 sealed trait StateActionResult
 object Stay extends StateActionResult
@@ -29,7 +30,6 @@ trait FSMActorState {
 
   /** Called when leaving the state. */
   def onExit(): Unit = ()
-
 }
 
 object FSMActorState {
@@ -56,7 +56,28 @@ object FSMActorState {
 object StateFlow {
 
   import scala.language.implicitConversions
+
+  /** Implicit conversion from [[pubsub.fsm.FSMActorState]] to [[pubsub.fsm.StateFlow]]
+    * so that the resulting flow is a last node in the flow.
+    * @param state The last [[FSMActorState]] of the flow
+    * @return An instance of [[StateFlow]]
+    */
   implicit def flowEnd(state: FSMActorState): StateFlow = new StateFlow(state, _ => None)
+
+  /** Creates StateFlow for a yet undefined value.
+    *
+    * Enables syntax like that:
+    * {{{ val MainLoop = State1 >>: State2 >>: State3 >>: loop(MainLoop) }}}
+    *
+    * `MainLoop` is undefined when evaluating the expression but since it is passed by name to `loop` function,
+    * we can safely use it.
+    *
+    * @param flow Passed-by-name flow
+    * @return An instance of [[StateFlow]]
+    */
+  def loop(flow: => StateFlow): StateFlow = new StateFlow(LoopState, _ => Some(flow))
+
+  object LoopState extends FSMActorState
 }
 
 /** Definition of state flow.
@@ -64,7 +85,13 @@ object StateFlow {
   * @param nextState Function computing the next state
   */
 case class StateFlow(state: FSMActorState, nextState: FSMActorState => Option[StateFlow]) {
-  def >>:(state: FSMActorState): StateFlow = new StateFlow(state, _ => Some(this))
+  def >>:(state: FSMActorState): StateFlow = this match {
+    // flow created with StateFlow.loop function
+    case StateFlow(LoopState, _) => new StateFlow(state, _ => nextState(LoopState))
+
+    // normal flow
+    case _  => new StateFlow(state, _ => Some(this))
+  }
 }
 
 /** Enables an actor to define possible states which it may be in and
