@@ -28,6 +28,7 @@ lazy val pubsub = project
       logbackClassic % Test,
       "org.scalactic" %% "scalactic" % "3.0.4" % Test,
       "org.scalatest" %% "scalatest" % "3.0.4" % Test,
+      "org.scalamock" %% "scalamock" % "4.1.0" % Test,
 
       h2database % Runtime
     ),

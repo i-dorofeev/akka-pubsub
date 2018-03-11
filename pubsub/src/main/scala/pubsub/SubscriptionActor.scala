@@ -71,7 +71,7 @@ class SubscriptionActor(
 
   private val WaitingForEvents = FSMActorState("WaitingForEvents",
     receiveFunc = {
-      case event: EventNotification if event.ordinal == eventOrdinal + 1 =>
+      case event: EventNotification if event.ordinal == eventOrdinal =>
         notifySubscriber(event)
         Stay
 
