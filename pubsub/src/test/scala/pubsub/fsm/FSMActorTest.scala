@@ -1,11 +1,10 @@
-package pubsub
+package pubsub.fsm
 
 import akka.actor.{ActorRef, Props}
 import akka.testkit.TestProbe
-import com.typesafe.scalalogging.Logger
 import org.scalatest.{Matchers, SequentialNestedSuiteExecution}
+import pubsub.BaseTestKit
 import pubsub.fsm.FSMActorState.actionState
-import pubsub.fsm._
 
 /**
   * Tests that a base FSMActor behaves as expected so it can
