@@ -122,7 +122,7 @@ trait FSMActor extends Actor with ActorLogging {
     launcher() match {
       case Some(flow) if !flow.equals(currentFlow) =>
         currentFlow = flow
-        log.debug(s"Entered flow ${currentFlow.state.name}")
+        log.debug(s"Entered state ${currentFlow.state.name}")
         onStateChanged(Some(currentFlow.state.name))
 
       case Some(flow) if flow.equals(currentFlow) =>
