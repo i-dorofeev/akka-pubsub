@@ -64,24 +64,26 @@ class FSMActorTest extends BaseTestKit("FSMActorTest")
   }
 }
 
-class FSMTestActor(watcher: ActorRef, onStateChangedCallback: Option[String] => Unit = _ => Unit) extends FSMActor {
+class FSMTestActor(watcher: ActorRef, onStateChangedCallback: Option[String] => Unit = _ => Unit) extends FSMActor[Unit] {
+
+  override protected val initialState: Unit = Unit
 
   override protected def onStateChanged(newState: Option[String]): Unit = onStateChangedCallback(newState)
 
   /**
     * Invokes an action on entering the state and immediately leaves the state.
     */
-  val State1: FSMActorState = actionState("State1") { () => watcher ! "state1.onEnter" }
+  val State1: FSMActorState[Unit] = actionState("State1") { () => watcher ! "state1.onEnter" }
 
   /**
     * Invokes an action on entering the state and immediately leaves the state.
     * A verbose version of an actionState.
     */
-  val State2: FSMActorState = new FSMActorState {
+  val State2: FSMActorState[Unit] = new FSMActorState[Unit] {
     override val name: String = "State2"
-    override def onEnter(): StateActionResult = {
+    override def onEnter(stateData: Unit): StateActionResult[Unit] = {
       watcher ! "state2.onEnter"
-      Leave
+      Leave(Unit)
     }
   }
 
@@ -92,12 +94,12 @@ class FSMTestActor(watcher: ActorRef, onStateChangedCallback: Option[String] => 
     * cause the actor to leave the state. After leaving the state
     * onExit handler is invoked.
     */
-  val State3: FSMActorState = FSMActorState("State3",
-    onEnterCallback = { () => watcher ! "state3.onEnter"; Stay },
+  val State3: FSMActorState[Unit] = FSMActorState[Unit]("State3",
+    onEnterCallback = { stateData:Unit => watcher ! "state3.onEnter"; Stay(stateData) },
 
     receiveFunc = {
-      case "stay in State3" => watcher ! "staying in State3"; Stay
-      case "leave State3" => watcher ! "leaving State3"; Leave
+      case (stateData, "stay in State3") => watcher ! "staying in State3"; Stay(stateData)
+      case (stateData, "leave State3") => watcher ! "leaving State3"; Leave(stateData)
     },
 
     onExitCallback = { () => watcher ! "state3.onExit" }
@@ -109,5 +111,5 @@ class FSMTestActor(watcher: ActorRef, onStateChangedCallback: Option[String] => 
     * Definition of state flow.
     * After leaving State3 actor should stop itself.
     */
-  override val stateFlow: StateFlow = State1 >>: State2 >>: State3
+  override val stateFlow: StateFlow[Unit] = State1 >>: State2 >>: State3
 }

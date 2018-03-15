@@ -1,7 +1,7 @@
 package pubsub
 
 import akka.NotUsed
-import akka.actor.{ActorRef, StoppingSupervisorStrategy, SupervisorStrategy, SupervisorStrategyConfigurator}
+import akka.actor.{ActorRef, StoppingSupervisorStrategy}
 import akka.stream.scaladsl.{Sink, Source, SourceQueueWithComplete}
 import akka.stream.{ActorMaterializer, OverflowStrategy}
 import akka.testkit.TestProbe
@@ -93,8 +93,9 @@ class SubscriptionActorTest extends BaseTestKit("SubscriptionActorTest",
 
       "start catching up with event upstream if it has fallen behind the upstream" in {
         val (_, source) = manualEventUpstream()
-        (eventStoreMock.eventUpstream _).expects("testTopic", 3).returning(eventUpstream(source, 0))
+        (eventStoreMock.eventUpstream _).expects("testTopic", 3).returning(eventUpstream(source, 3))
 
+        // imagine there was a network partition and we somehow skipped the events from 3 to 9
         val someEventOrdinal = 10
         subscriptionRef ! EventNotification(someEventOrdinal, "event10")
 

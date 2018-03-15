@@ -3,16 +3,20 @@ package pubsub
 import akka.actor.{ActorRef, Props}
 import org.reactivestreams.{Publisher, Subscriber, Subscription}
 import pubsub.EventStore.EventUpstream
+import pubsub.SubscriptionActor.EventOrdinal
 import pubsub.fsm.FSMActor.OnStateChangedCallback
-import pubsub.fsm.FSMActorState.actionState
+import pubsub.fsm.FSMActorState.{FSMReceive, actionState}
 import pubsub.fsm._
 
 
 object SubscriptionActor {
+
+  type EventOrdinal = Long
+
   def props(
          subscriber: ActorRef,
          topic: String,
-         eventOrdinal: Long,
+         eventOrdinal: EventOrdinal,
          eventStore: EventStore,
          onStateChangedCallback: OnStateChangedCallback = { _ => }): Props =
     Props(new SubscriptionActor(subscriber, topic, eventOrdinal, eventStore, onStateChangedCallback))
@@ -30,57 +34,61 @@ trait EventStore {
 class SubscriptionActor(
        val subscriber: ActorRef,
        val topic: String,
-       var eventOrdinal: Long,
+       override val initialState: SubscriptionActor.EventOrdinal,
        val eventStore: EventStore,
-       val onStateChangedCallback: OnStateChangedCallback) extends FSMActor {
+       val onStateChangedCallback: OnStateChangedCallback) extends FSMActor[EventOrdinal] {
 
   override protected def onStateChanged(newState: Option[String]): Unit = onStateChangedCallback(newState)
 
-  private val Created = actionState("Created") { () =>
+  private val Created = actionState[EventOrdinal]("Created") { () =>
     log.debug(s"Sending SubscriberAck to $subscriber")
     subscriber ! SubscribeAck(self)
   }
 
-  private val CatchingUpWithUpstream = new FSMActorState {
+  private val CatchingUpWithUpstream = new FSMActorState[EventOrdinal] {
 
     override val name: String = "CatchingUpWithUpstream"
 
     case object CaughtWithUpstream
+    case class UpstreamEvent(evt: EventNotification)
 
-    override def onEnter(): StateActionResult = {
-      eventStore.eventUpstream(topic, eventOrdinal).subscribe(new Subscriber[EventNotification] {
+    override def onEnter(nextEventOrd: EventOrdinal): StateActionResult[EventOrdinal] = {
+      eventStore.eventUpstream(topic, nextEventOrd).subscribe(new Subscriber[EventNotification] {
         override def onError(t: Throwable): Unit = ()
         override def onComplete(): Unit = self ! CaughtWithUpstream
-        override def onNext(t: EventNotification): Unit = notifySubscriber(t)
+        override def onNext(t: EventNotification): Unit = self ! UpstreamEvent(t)
         override def onSubscribe(s: Subscription): Unit = s.request(Long.MaxValue)
       })
 
-      Stay
+      Stay(nextEventOrd)
     }
 
-    override def receive: PartialFunction[Any, StateActionResult] = {
-      case CaughtWithUpstream => Leave
+    override def receive: FSMReceive[EventOrdinal] = {
+      case (nextEventOrd, evt: UpstreamEvent) =>
+        notifySubscriber(evt.evt)
+        Stay(nextEventOrd + 1)
+
+      case (nextEventOrd, CaughtWithUpstream) => Leave(nextEventOrd)
     }
   }
 
   def notifySubscriber(eventNotification: EventNotification): Unit = {
     log.debug(s"Sending event notification to the subscriber $subscriber")
     subscriber ! eventNotification
-    eventOrdinal += 1
   }
 
-  private val WaitingForEvents = FSMActorState("WaitingForEvents",
+  private val WaitingForEvents = FSMActorState[EventOrdinal]("WaitingForEvents",
     receiveFunc = {
-      case event: EventNotification if event.ordinal == eventOrdinal =>
+      case (nextEventOrdinal, event: EventNotification) if event.ordinal.equals(nextEventOrdinal) =>
         notifySubscriber(event)
-        Stay
+        Stay(nextEventOrdinal + 1)
 
-      case _: EventNotification =>
+      case (nextEventOrd, _: EventNotification) =>
         // it seems that we missed some of the events
-        Leave
+        Leave(nextEventOrd)
     })
 
   import StateFlow._
-  val MainLoop: StateFlow = CatchingUpWithUpstream >>: WaitingForEvents >>: loop(MainLoop)
-  override val stateFlow: StateFlow = Created >>: MainLoop
+  val MainLoop: StateFlow[EventOrdinal] = CatchingUpWithUpstream >>: WaitingForEvents >>: loop(MainLoop)
+  override val stateFlow: StateFlow[EventOrdinal] = Created >>: MainLoop
 }
