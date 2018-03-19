@@ -14,8 +14,9 @@ trait FSMActorState[T] {
   /** The name of the state.
     *
     * Can be used for testing or debugging purposes.
+    * We use `def` here instead of `val` to be able to mock this property in tests.
     */
-  val name: String = this.toString
+  def name: String = this.toString
 
   /** Called when entering the state.
     * @return Either [[Stay]] to proceed with the state or [[Leave]] to leave the state immediately.
@@ -127,10 +128,10 @@ trait FSMActor[T] extends Actor with ActorLogging {
 
   /** Called when state changes.
     *
+    * Receives name of the new state or [[None]] if actor's finished its final state.
     * Can be used to track state changes outside the actor for testing and debugging purposes.
-    * @param newState Name of the new state.
     */
-  protected def onStateChanged(newState: Option[String]): Unit = ()
+  protected val onStateChanged: Option[String] => Unit = { _ => () }
 
   private def runFlow(launcher: () => Option[NextState]): Unit = {
     launcher() match {

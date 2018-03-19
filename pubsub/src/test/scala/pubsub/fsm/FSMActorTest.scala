@@ -1,115 +1,77 @@
 package pubsub.fsm
 
-import akka.actor.{ActorRef, Props}
+import akka.actor.Props
 import akka.testkit.TestProbe
+import org.scalamock.scalatest.MockFactory
 import org.scalatest.{Matchers, SequentialNestedSuiteExecution}
 import pubsub.BaseTestKit
-import pubsub.fsm.FSMActorState.actionState
+import pubsub.mocks.PartialFunctionMockFactory
 
-/**
-  * Tests that a base FSMActor behaves as expected so it can
-  * be used to implement custom actors using FSM logic.
-  *
-  * Uses test implementation of an FSM actor that makes use of
-  * every possible state definition and state transition. Goes
-  * through every state and verifies that all the state lifecycle
-  * methods will be called by signalling state back with special
-  * messages indicating the current state of an actor.
-  */
+import scala.concurrent.duration._
+import scala.language.postfixOps
+
+//noinspection TypeAnnotation,ScalaStyle
 class FSMActorTest extends BaseTestKit("FSMActorTest")
   with Matchers
+  with MockFactory
+  with PartialFunctionMockFactory
   with SequentialNestedSuiteExecution {
 
-  /**
-    * Watches replies and termination notification from
-    * FSM actor under test.
-    */
-  val watcher = TestProbe()
+  /** Implements all the necessary plumbing for mocking [[pubsub.fsm.StateFlow]] */
+  case class MockStateFlow[T](stateName: String) {
+    val state = mock[FSMActorState[T]]
+    val nextState = mockFunction[FSMActorState[T], Option[StateFlow[T]]]
+    val stateFlow = new StateFlow[T](state, nextState)
+    val receive = mockPartialFunction[(T, Any), StateActionResult[T]]
 
-  /**
-    * FSM actor under test.
-    */
-  val fsmTestActor: ActorRef = system.actorOf(Props(new FSMTestActor(watcher.ref, name => watcher.ref ! name)), "FSMTestActor")
+    (state.receive _).stubs().returning(receive)
+    (state.name _).stubs().returning(stateName)
 
-  watcher.watch(fsmTestActor)
-
-  "An FSMTestActor" must {
-    "go through State1 and State2 to State3" in {
-      watcher.expectMsg("state1.onEnter")
-      watcher.expectMsg("state2.onEnter")
-      watcher.expectMsg("state3.onEnter")
-
-      watcher.expectMsg(Some("State3"))
+    def expectNextState(nextStateFlow: MockStateFlow[T]): MockStateFlow[T] = {
+      nextState.expects(state).returning(Some(nextStateFlow.stateFlow))
+      nextStateFlow
     }
 
-    "handle messages by State3 receiver" in {
-      fsmTestActor ! "stay in State3"
-      watcher.expectMsg("staying in State3")
-    }
-
-    "handle unknown messages without leaving current State3" in {
-      fsmTestActor ! "unknown message"
-      fsmTestActor ! "stay in State3"
-      watcher.expectMsg("staying in State3")
-    }
-
-    "leave State3 after receiving 'leave' message and stop" in {
-      fsmTestActor ! "leave State3"
-      watcher.expectMsg("leaving State3")
-      watcher.expectMsg("state3.onExit")
-
-      watcher.expectMsg(None)
-      watcher.expectTerminated(fsmTestActor)
-    }
-  }
-}
-
-class FSMTestActor(watcher: ActorRef, onStateChangedCallback: Option[String] => Unit = _ => Unit) extends FSMActor[Unit] {
-
-  override protected val initialState: Unit = Unit
-
-  override protected def onStateChanged(newState: Option[String]): Unit = onStateChangedCallback(newState)
-
-  /**
-    * Invokes an action on entering the state and immediately leaves the state.
-    */
-  val State1: FSMActorState[Unit] = actionState("State1") { () => watcher ! "state1.onEnter" }
-
-  /**
-    * Invokes an action on entering the state and immediately leaves the state.
-    * A verbose version of an actionState.
-    */
-  val State2: FSMActorState[Unit] = new FSMActorState[Unit] {
-    override val name: String = "State2"
-    override def onEnter(stateData: Unit): StateActionResult[Unit] = {
-      watcher ! "state2.onEnter"
-      Leave(Unit)
+    def expectNoState(): Unit = {
+      nextState.expects(state).returning(None)
     }
   }
 
-  /**
-    * "Full blown" state.
-    * It enters the state invoking onEnter handler. Then it
-    * defines receive function for this state. Some of the messages
-    * cause the actor to leave the state. After leaving the state
-    * onExit handler is invoked.
-    */
-  val State3: FSMActorState[Unit] = FSMActorState[Unit]("State3",
-    onEnterCallback = { stateData:Unit => watcher ! "state3.onEnter"; Stay(stateData) },
+  /** Runs FSMActor under test */
+  def runFSMActor[T](stateWatcher: TestProbe, _initialState: T, _stateFlow: StateFlow[T]) = system.actorOf(Props(new FSMActor[T] {
+    stateWatcher.watch(self)
 
-    receiveFunc = {
-      case (stateData, "stay in State3") => watcher ! "staying in State3"; Stay(stateData)
-      case (stateData, "leave State3") => watcher ! "leaving State3"; Leave(stateData)
-    },
+    override protected val onStateChanged = { newState: Option[String] => stateWatcher.ref ! newState }
+    override protected val initialState: T = _initialState
+    override protected val stateFlow: StateFlow[T] = _stateFlow
+  }))
 
-    onExitCallback = { () => watcher ! "state3.onExit" }
-  )
 
-  import StateFlow._
+  "An FSMActor should run through its lifecycle with respect to its state flow" in {
 
-  /**
-    * Definition of state flow.
-    * After leaving State3 actor should stop itself.
-    */
-  override val stateFlow: StateFlow[Unit] = State1 >>: State2 >>: State3
+    // setting expectations
+    val mockFlow1 = MockStateFlow[Int]("state1")
+    (mockFlow1.state.onEnter _).expects(0).returning(Leave(1))
+    (mockFlow1.state.onExit _).expects()
+
+    val mockFlow2 = mockFlow1.expectNextState(MockStateFlow[Int]("state2"))
+    (mockFlow2.state.onEnter _).expects(1).returning(Stay(2))
+    mockFlow2.receive.mock.expects(2, "state2.stay").returning(Stay(3))
+    mockFlow2.receive.mock.expects(3, "state2.leave").returning(Leave(4))
+    (mockFlow2.state.onExit _).expects()
+
+    mockFlow2.expectNoState()
+
+    // running the actor
+    val stateWatcher = TestProbe("stateWatcher")
+    val fsmActor = runFSMActor(stateWatcher, 0, mockFlow1.stateFlow)
+    stateWatcher.expectMsg(Some(mockFlow2.stateName))
+
+    fsmActor ! "state2.stay"
+    stateWatcher.expectNoMessage(100 millis)
+
+    fsmActor ! "state2.leave"
+    stateWatcher.expectMsg(None)
+    stateWatcher.expectTerminated(fsmActor)
+  }
 }

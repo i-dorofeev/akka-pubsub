@@ -19,7 +19,9 @@ object SubscriptionActor {
          eventOrdinal: EventOrdinal,
          eventStore: EventStore,
          onStateChangedCallback: OnStateChangedCallback = { _ => }): Props =
-    Props(new SubscriptionActor(subscriber, topic, eventOrdinal, eventStore, onStateChangedCallback))
+    Props(new {
+      override val onStateChanged: Option[String] => Unit = onStateChangedCallback
+    } with SubscriptionActor(subscriber, topic, eventOrdinal, eventStore))
 }
 
 object EventStore {
@@ -35,10 +37,7 @@ class SubscriptionActor(
        val subscriber: ActorRef,
        val topic: String,
        override val initialState: SubscriptionActor.EventOrdinal,
-       val eventStore: EventStore,
-       val onStateChangedCallback: OnStateChangedCallback) extends FSMActor[EventOrdinal] {
-
-  override protected def onStateChanged(newState: Option[String]): Unit = onStateChangedCallback(newState)
+       val eventStore: EventStore) extends FSMActor[EventOrdinal] {
 
   private val Created = actionState[EventOrdinal]("Created") { () =>
     log.debug(s"Sending SubscriberAck to $subscriber")
