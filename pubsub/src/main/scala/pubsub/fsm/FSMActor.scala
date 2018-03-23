@@ -41,6 +41,14 @@ object FSMActorState {
   type Msg[T] = (T, Any)
   type FSMReceive[T] = PartialFunction[Msg[T], StateActionResult[T]]
 
+  /** Constructs a state which executes the specified action on enter
+    * and immediately exits the state.
+    *
+    * @param stateName Name of the state.
+    * @param action Action to execute when entering the state.
+    * @tparam T Type parameter of the state.
+    * @return Instance of the constructed state.
+    */
   def actionState[T](stateName: String)(action: () => Unit): FSMActorState[T] = new FSMActorState[T] {
     override val name: String = stateName
     override def onEnter(stateData: T): StateActionResult[T] = {
