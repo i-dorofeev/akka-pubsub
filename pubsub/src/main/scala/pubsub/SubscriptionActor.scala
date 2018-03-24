@@ -1,37 +1,11 @@
 package pubsub
 
 import akka.actor.{ActorRef, Props}
-import org.reactivestreams.{Publisher, Subscriber, Subscription}
-import pubsub.EventStore.EventUpstream
+import org.reactivestreams.{Subscriber, Subscription}
 import pubsub.SubscriptionActor.EventOrdinal
 import pubsub.fsm.FSMActor.OnStateChangedCallback
 import pubsub.fsm.FSMActorState.{FSMReceive, actionState}
 import pubsub.fsm._
-
-
-object SubscriptionActor {
-
-  type EventOrdinal = Long
-
-  def props(
-         subscriber: ActorRef,
-         topic: String,
-         eventOrdinal: EventOrdinal,
-         eventStore: EventStore,
-         onStateChangedCallback: OnStateChangedCallback = { _ => }): Props =
-    Props(new {
-      override val onStateChanged: Option[String] => Unit = onStateChangedCallback
-    } with SubscriptionActor(subscriber, topic, eventOrdinal, eventStore))
-}
-
-object EventStore {
-  type EventUpstream = Publisher[EventNotification]
-}
-
-trait EventStore {
-  def eventUpstream(topic: String, startFrom: Long): EventUpstream
-}
-
 
 class SubscriptionActor(
        val subscriber: ActorRef,
@@ -90,4 +64,19 @@ class SubscriptionActor(
   import StateFlow._
   val MainLoop: StateFlow[EventOrdinal] = CatchingUpWithUpstream >>: WaitingForEvents >>: loop(MainLoop)
   override val stateFlow: StateFlow[EventOrdinal] = Created >>: MainLoop
+}
+
+object SubscriptionActor {
+
+  type EventOrdinal = Long
+
+  def props(
+         subscriber: ActorRef,
+         topic: String,
+         eventOrdinal: EventOrdinal,
+         eventStore: EventStore,
+         onStateChangedCallback: OnStateChangedCallback = { _ => }): Props =
+    Props(new {
+      override val onStateChanged: Option[String] => Unit = onStateChangedCallback
+    } with SubscriptionActor(subscriber, topic, eventOrdinal, eventStore))
 }
