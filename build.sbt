@@ -36,33 +36,3 @@ lazy val pubsub = project
     // enables ordered output for scalatest tests
     logBuffered in Test := false
   )
-
-lazy val broker = (project in file("sample/broker"))
-  .settings(
-    commonSettings,
-
-    name := "broker",
-
-    libraryDependencies ++= Seq(
-      akka("cluster"),
-      akka("slf4j"),
-
-      logbackClassic,
-      h2database % Runtime
-    ))
-  .dependsOn(pubsub)
-
-lazy val subscriber = (project in file("sample/subscriber"))
-  .settings(
-    commonSettings,
-
-    name := "subscriber",
-
-    libraryDependencies ++= Seq(
-      akka("cluster"),
-      akka("slf4j"),
-
-      logbackClassic,
-      h2database % Runtime
-    ))
-  .dependsOn(pubsub)
