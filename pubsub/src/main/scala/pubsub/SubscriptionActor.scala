@@ -50,7 +50,7 @@ class SubscriptionActor(
     subscriber ! eventNotification
   }
 
-  private val WaitingForEvents = FSMActorState[EventOrdinal]("WaitingForEvents",
+  protected val WaitingForEvents = FSMActorState[EventOrdinal]("WaitingForEvents",
     receiveFunc = {
       case (nextEventOrdinal, event: EventNotification) if event.ordinal.equals(nextEventOrdinal) =>
         notifySubscriber(event)

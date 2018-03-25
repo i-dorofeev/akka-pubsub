@@ -1,15 +1,13 @@
 package pubsub
 
 import akka.actor.{Props, StoppingSupervisorStrategy}
+import akka.stream.scaladsl.{Sink, Source}
+import akka.stream.{ActorMaterializer, OverflowStrategy}
 import akka.testkit.TestProbe
 import org.scalamock.scalatest.MockFactory
 import pubsub.SubscriptionActor.EventOrdinal
-import pubsub.fsm.{FSMActorState, Leave, StateFlow}
-import StateFlow._
-import akka.NotUsed
-import akka.stream.{ActorMaterializer, OverflowStrategy}
-import akka.stream.scaladsl.{Sink, Source, SourceQueueWithComplete}
-import pubsub.EventStore.EventUpstream
+import pubsub.fsm.StateFlow._
+import pubsub.fsm.{FSMActorState, Leave}
 
 import scala.concurrent.duration._
 import scala.language.postfixOps
@@ -22,38 +20,32 @@ class SubscriptionActorStateTests extends BaseTestKit("SubscriptionActorTest", A
   trait Fixture {
     val waitDuration = 100 millis
 
+    // This is a receiver of event notifications
     val subscriber = TestProbe("subscriber")
-    val endState = endStateStub[EventOrdinal]()
+
+    // End state receives the state value from the state under test and ends the state flow
+    val endState = stub[FSMActorState[EventOrdinal]]
+    (endState.onEnter _).when(*).onCall { i: EventOrdinal => Leave(i) }
+    (endState.name _).when().returning("endState")
+
+    /** Verifies the state value after leaving the state under test.
+      *
+      * @param expectedStateValue Expected state value.
+      */
+    def verifyStateValue(expectedStateValue: EventOrdinal) = (endState.onEnter _).verify(expectedStateValue)
+
     val topic = "testTopic"
 
-    def endStateStub[T](): FSMActorState[T] = {
-      val endState = stub[FSMActorState[T]]
-      (endState.onEnter _).when(*).onCall { i: T => Leave(i) }
-      (endState.name _).when().returning("endState")
-      endState
-    }
+    // Manual event store stub
+    val eventStoreStub: EventStore = stub[EventStore]
 
     implicit val materializer: ActorMaterializer = ActorMaterializer()
-
-    /** Simulated event upstream created from a source of string */
-    def eventUpstream(source: Source[String, NotUsed], startFrom: Long): EventUpstream = source
-      .zipWithIndex
-      .map { zip => EventNotification(ordinal = zip._2 + startFrom, payload = zip._1) }
-      .runWith(Sink.asPublisher(fanout = false))
-
-    /** Prematerializes an [[akka.stream.scaladsl.SourceQueueWithComplete[String]]] to
-      * use it as a source for creating [[EventUpstream]] with [[eventUpstream()]] function.
-      */
-    def manualEventUpstream()(implicit materializer: ActorMaterializer): (SourceQueueWithComplete[String], Source[String, NotUsed]) = {
-      val bufferSize = 1
-      Source.queue[String](bufferSize, OverflowStrategy.fail).preMaterialize()
-    }
-
-    val eventStoreStub: EventStore = stub[EventStore]
-    val (manualEventStream, source) = manualEventUpstream()
-    (eventStoreStub.eventUpstream _).when(topic, *).onCall { (_, i: EventOrdinal) => eventUpstream(source, i + 1) }
-
-    def verifyState(expectedState: EventOrdinal) = (endState.onEnter _).verify(expectedState)
+    val (manualEventStream, source) = Source.queue[String](bufferSize = 1, OverflowStrategy.fail).preMaterialize()
+    (eventStoreStub.eventUpstream _).when(topic, *).onCall { (_, startFrom: EventOrdinal) =>
+      source
+        .zipWithIndex
+        .map { zip => EventNotification(ordinal = zip._2 + startFrom + 1, payload = zip._1) }
+        .runWith(Sink.asPublisher(fanout = false)) }
   }
 
   "A SubscriptionActor" when {
@@ -63,14 +55,14 @@ class SubscriptionActorStateTests extends BaseTestKit("SubscriptionActorTest", A
           override val stateFlow = Created >>: endState
         })
 
-        val actor = watch (system.actorOf(subscriptionActorProps, "subscriptionActor"))
+        val actor = watch (system.actorOf(subscriptionActorProps))
 
         subscriber.expectMsg(SubscribeAck(actor))
         subscriber.expectNoMessage(waitDuration)
 
         expectTerminated(actor)
 
-        verifyState(1L)
+        verifyStateValue(1L)
       }
     }
 
@@ -80,7 +72,7 @@ class SubscriptionActorStateTests extends BaseTestKit("SubscriptionActorTest", A
           override val stateFlow = CatchingUpWithUpstream >>: endState
         })
 
-        val actor = watch (system.actorOf(subscriptionActorProps, "subscriptionActor"))
+        val actor = watch (system.actorOf(subscriptionActorProps))
 
         manualEventStream.offer("event2")
         manualEventStream.offer("event3")
@@ -95,7 +87,31 @@ class SubscriptionActorStateTests extends BaseTestKit("SubscriptionActorTest", A
 
         expectTerminated(actor)
 
-        verifyState(4L)
+        (eventStoreStub.eventUpstream _).verify(topic, 1)
+        verifyStateValue(4L)
+      }
+    }
+
+    "waiting for event notifications" should {
+      "forward event notifications from topic to subscriber" in new Fixture {
+        val subscriptionActorProps = Props(new SubscriptionActor(subscriber.ref, topic, 1, eventStoreStub) {
+          override val stateFlow = WaitingForEvents >>: endState
+        })
+
+        val actor = watch (system.actorOf(subscriptionActorProps))
+
+        actor ! EventNotification(1, "event1")
+        actor ! EventNotification(2, "event2")
+        // simulate that event3 is lost for any reason
+        actor ! EventNotification(4, "event4")
+
+        subscriber.expectMsg(EventNotification(1, "event1"))
+        subscriber.expectMsg(EventNotification(2, "event2"))
+        subscriber.expectNoMessage(waitDuration)
+
+        expectTerminated(actor)
+
+        verifyStateValue(3L)
       }
     }
   }
