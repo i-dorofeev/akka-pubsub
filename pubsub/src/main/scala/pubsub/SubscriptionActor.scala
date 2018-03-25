@@ -13,12 +13,12 @@ class SubscriptionActor(
        override val initialState: SubscriptionActor.EventOrdinal,
        val eventStore: EventStore) extends FSMActor[EventOrdinal] {
 
-  private val Created = actionState[EventOrdinal]("Created") { () =>
+  protected val Created: FSMActorState[EventOrdinal] = actionState[EventOrdinal]("Created") { () =>
     log.debug(s"Sending SubscriberAck to $subscriber")
     subscriber ! SubscribeAck(self)
   }
 
-  private val CatchingUpWithUpstream = new FSMActorState[EventOrdinal] {
+  protected val CatchingUpWithUpstream = new FSMActorState[EventOrdinal] {
 
     override val name: String = "CatchingUpWithUpstream"
 

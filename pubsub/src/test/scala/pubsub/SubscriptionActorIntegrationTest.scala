@@ -12,7 +12,7 @@ import pubsub.EventStore.EventUpstream
 import scala.concurrent.duration._
 import scala.language.postfixOps
 
-class SubscriptionActorTest extends BaseTestKit("SubscriptionActorTest",
+class SubscriptionActorIntegrationTest extends BaseTestKit("SubscriptionActorIntegrationTest",
   ActorSystemConfig()
     .withGuardianSupervisorStrategy[StoppingSupervisorStrategy]()) // we don't want actors under test to be restarted after failure
   with MockFactory
