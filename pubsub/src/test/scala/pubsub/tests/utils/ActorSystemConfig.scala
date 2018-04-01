@@ -1,4 +1,4 @@
-package pubsub.utils
+package pubsub.tests.utils
 
 import akka.actor.SupervisorStrategyConfigurator
 import com.typesafe.config.{Config, ConfigFactory}

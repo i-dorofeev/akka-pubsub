@@ -1,4 +1,4 @@
-package pubsub.utils
+package pubsub.tests.utils
 
 import org.scalamock.function.MockFunction1
 import org.scalamock.scalatest.MockFactory
@@ -13,7 +13,7 @@ class PartialFunctionMock[A, B](val mock: MockFunction1[A, B]) extends PartialFu
   override def apply(v1: A): B = mock(v1)
 }
 
-/** Factory for [[pubsub.utils.PartialFunctionMock[A, B]]] */
+/** Factory for [[pubsub.tests.utils.PartialFunctionMock[A, B]]] */
 trait PartialFunctionMockFactory extends MockFactory {
   def mockPartialFunction[A, B]: PartialFunctionMock[A, B] = new PartialFunctionMock(mockFunction[A, B])
 }

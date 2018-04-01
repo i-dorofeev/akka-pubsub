@@ -1,13 +1,14 @@
-package pubsub
+package pubsub.tests
 
 import akka.actor.{Props, StoppingSupervisorStrategy}
 import akka.stream.ActorMaterializer
 import akka.testkit.TestProbe
 import org.scalamock.scalatest.MockFactory
 import pubsub.SubscriptionActor.EventOrdinal
-import pubsub.fixtures.{EndStateFixture, EventStoreStubFixture}
 import pubsub.fsm.StateFlow._
-import pubsub.utils.{ActorSystemConfig, BaseTestKit}
+import pubsub.tests.fixtures.{EndStateFixture, EventStoreStubFixture}
+import pubsub.tests.utils.{ActorSystemConfig, BaseTestKit}
+import pubsub.{EventNotification, SubscribeAck, SubscriptionActor}
 
 import scala.concurrent.duration._
 import scala.language.postfixOps

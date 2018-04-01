@@ -1,4 +1,4 @@
-package pubsub.fixtures
+package pubsub.tests.fixtures
 
 import akka.stream.{ActorMaterializer, OverflowStrategy}
 import akka.stream.scaladsl.{Sink, Source, SourceQueueWithComplete}

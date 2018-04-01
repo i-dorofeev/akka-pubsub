@@ -1,7 +1,8 @@
-package pubsub.fsm
+package pubsub.tests.fsm
 
 import org.scalamock.scalatest.MockFactory
 import org.scalatest.WordSpecLike
+import pubsub.fsm.{FSMActorState, Leave}
 
 class FSMActorStateTest extends WordSpecLike with MockFactory {
 

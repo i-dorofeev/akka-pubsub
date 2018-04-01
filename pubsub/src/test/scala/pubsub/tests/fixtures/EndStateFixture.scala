@@ -1,4 +1,4 @@
-package pubsub.fixtures
+package pubsub.tests.fixtures
 
 import org.scalamock.handlers.{CallHandler1, Verify}
 import org.scalamock.scalatest.MockFactory

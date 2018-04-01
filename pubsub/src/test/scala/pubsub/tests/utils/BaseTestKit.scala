@@ -1,4 +1,4 @@
-package pubsub.utils
+package pubsub.tests.utils
 
 import akka.actor.ActorSystem
 import akka.testkit.{ImplicitSender, TestKit}

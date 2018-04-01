@@ -1,9 +1,9 @@
-package pubsub.fsm
+package pubsub.tests.fsm
 
 import org.scalamock.scalatest.MockFactory
 import org.scalatest.WordSpecLike
-
-import StateFlow._
+import pubsub.fsm.StateFlow._
+import pubsub.fsm.{FSMActorState, StateFlow}
 
 /** Tests DSL for creating state flows */
 class StateFlowDslTest extends WordSpecLike with MockFactory {
