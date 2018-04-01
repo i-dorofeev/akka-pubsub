@@ -7,6 +7,15 @@ import pubsub.fsm.FSMActor.OnStateChangedCallback
 import pubsub.fsm.FSMActorState.{FSMReceive, actionState}
 import pubsub.fsm._
 
+/** Manages subscription requested by a subscriber.
+  *
+  * At first tries to catch up with event upstream starting with the specified position. Then
+  * listens to the topic for new events.
+  * @param subscriber Subscriber actor which requested the subscription and which will receive event notifications.
+  * @param topic Topic name.
+  * @param initialState Initial state of the actor. An event ordinal to start from.
+  * @param eventStore Event store to catch up with upstream.
+  */
 class SubscriptionActor(
        val subscriber: ActorRef,
        val topic: String,
@@ -18,6 +27,7 @@ class SubscriptionActor(
     subscriber ! SubscribeAck(self)
   }
 
+  //noinspection TypeAnnotation
   protected val CatchingUpWithUpstream = new FSMActorState[EventOrdinal] {
 
     override val name: String = "CatchingUpWithUpstream"
@@ -41,7 +51,9 @@ class SubscriptionActor(
         notifySubscriber(evt.evt)
         Stay(nextEventOrd + 1)
 
-      case (nextEventOrd, CaughtWithUpstream) => Leave(nextEventOrd)
+      case (nextEventOrd, CaughtWithUpstream) =>
+        log.info(s"Caught up with upstream ($initialState : $nextEventOrd)")
+        Leave(nextEventOrd)
     }
   }
 
@@ -50,6 +62,7 @@ class SubscriptionActor(
     subscriber ! eventNotification
   }
 
+  //noinspection TypeAnnotation
   protected val WaitingForEvents = FSMActorState[EventOrdinal]("WaitingForEvents",
     receiveFunc = {
       case (nextEventOrdinal, event: EventNotification) if event.ordinal.equals(nextEventOrdinal) =>
@@ -57,7 +70,7 @@ class SubscriptionActor(
         Stay(nextEventOrdinal + 1)
 
       case (nextEventOrd, _: EventNotification) =>
-        // it seems that we missed some of the events
+        log.info("It seems we missed some of the events.")
         Leave(nextEventOrd)
     })
 
