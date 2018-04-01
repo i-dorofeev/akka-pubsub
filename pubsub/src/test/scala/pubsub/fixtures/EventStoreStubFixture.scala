@@ -28,7 +28,7 @@ trait EventStoreStubFixture extends MockFactory {
           (eventStoreStub.eventUpstream _).when(topic, *).onCall { (_, startFrom: EventOrdinal) =>
             source
               .zipWithIndex
-              .map { case (item, index) => EventNotification(ordinal = index + startFrom + 1, payload = item) }
+              .map { case (item, index) => EventNotification(ordinal = index + startFrom, payload = item) }
               .runWith(Sink.asPublisher(fanout = false))
           }
 

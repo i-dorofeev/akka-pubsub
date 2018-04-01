@@ -53,15 +53,15 @@ class SubscriptionActorStateTests extends BaseTestKit("SubscriptionActorTest", A
 
         val actor = watch (system.actorOf(subscriptionActorProps))
 
+        eventSourceQueue.offer("event1")
         eventSourceQueue.offer("event2")
+        actor ! EventNotification(4, "event4") // we shouldn't accept event notifications from topic in this state
         eventSourceQueue.offer("event3")
-        actor ! EventNotification(5, "event5") // we shouldn't accept event notifications from topic in this state
-        eventSourceQueue.offer("event4")
         eventSourceQueue.complete()
 
+        subscriber.expectMsg(EventNotification(1L, "event1"))
         subscriber.expectMsg(EventNotification(2L, "event2"))
         subscriber.expectMsg(EventNotification(3L, "event3"))
-        subscriber.expectMsg(EventNotification(4L, "event4"))
         subscriber.expectNoMessage(waitDuration)
 
         expectTerminated(actor)

@@ -1,107 +1,80 @@
 package pubsub
 
-import akka.NotUsed
 import akka.actor.{ActorRef, StoppingSupervisorStrategy}
-import akka.stream.scaladsl.{Sink, Source, SourceQueueWithComplete}
-import akka.stream.{ActorMaterializer, OverflowStrategy}
+import akka.stream.ActorMaterializer
 import akka.testkit.TestProbe
 import org.scalamock.scalatest.MockFactory
 import org.scalatest.{GivenWhenThen, Matchers, SequentialNestedSuiteExecution}
-import pubsub.EventStore.EventUpstream
+import pubsub.fixtures.EventStoreStubFixture
 
 import scala.concurrent.duration._
 import scala.language.postfixOps
 
+//noinspection ScalaStyle
 class SubscriptionActorIntegrationTest extends BaseTestKit("SubscriptionActorIntegrationTest",
   ActorSystemConfig()
     .withGuardianSupervisorStrategy[StoppingSupervisorStrategy]()) // we don't want actors under test to be restarted after failure
   with MockFactory
   with GivenWhenThen
   with Matchers
-  with SequentialNestedSuiteExecution {
+  with SequentialNestedSuiteExecution
+  with EventStoreStubFixture {
 
-  /** Simulated event upstream created from a source of string */
-  def eventUpstream(source: Source[String, NotUsed], startFrom: Long): EventUpstream = source
-      .zipWithIndex
-      .map { zip => EventNotification(ordinal = zip._2 + startFrom, payload = zip._1) }
-      .runWith(Sink.asPublisher(fanout = false))
+  class Fixture(val topic: String)(implicit val actorMaterializer: ActorMaterializer)
+      extends EventStoreStub {
 
-  /** Prematerializes an [[akka.stream.scaladsl.SourceQueueWithComplete[String]]] to
-    * use it as a source for creating [[EventUpstream]] with [[eventUpstream()]] function.
-    */
-  def manualEventUpstream()(implicit materializer: ActorMaterializer): (SourceQueueWithComplete[String], Source[String, NotUsed]) = {
-    val bufferSize = 1
-    Source.queue[String](bufferSize, OverflowStrategy.fail).preMaterialize()
+    /** Subscriber actor. It will receive event notifications from Subscription. */
+    val subscriberProbe = TestProbe("subscriberProbe")
+
+    /** Subscription state watcher. It will receive notifications about state changes of the SubscriptionActor. */
+    val stateWatcher = TestProbe("stateWatcher")
   }
 
-  /** Subscriber actor. It will receive event notifications from Subscription. */
-  val subscriberProbe = TestProbe("subscriberProbe")
+  implicit val actorMaterializer: ActorMaterializer = ActorMaterializer()
 
-  /** Subscription state watcher. It will receive notifications about state changes of the SubscriptionActor. */
-  val stateWatcher = TestProbe("stateWatcher")
+  "A SubscriptionActor integration test" in new Fixture("testTopic") {
+    When("a SubscriptionActor is started")
+    val subscriptionRef: ActorRef = system.actorOf(
+      SubscriptionActor.props(subscriberProbe.ref, topic, 0, eventStoreStub, state => stateWatcher.ref ! state),
+      "subscriptionActor")
 
-  implicit val materializer: ActorMaterializer = ActorMaterializer()
+    Then("it should send SubscribeAck to the subscriber")
+    subscriberProbe.expectMsg(SubscribeAck(subscriptionRef))
 
-  val eventStoreMock: EventStore = mock[EventStore]
+    And("it should start catching up with event upstream")
+    stateWatcher.expectMsg(Some("CatchingUpWithUpstream"))
 
-  /** SubscriptionActor under test.
-    * We don't want to start it immediately. We just want to obtain an ActorRef to use it
-    * later in the tests.
-    */
-  lazy val subscriptionRef: ActorRef = system.actorOf(
-    SubscriptionActor.props(subscriberProbe.ref, "testTopic", 0, eventStoreMock, state => stateWatcher.ref ! state),
-    "subscriptionActor")
+    When("it is catching up with event upstream")
+    eventSourceQueue.offer("event0")
+    eventSourceQueue.offer("event1")
 
-  "A subscription actor" when {
-    "started" must {
-      "send subscription acknowledgement and catch up with event upstream" in {
-        val (manualEventStream, source) = manualEventUpstream()
-        (eventStoreMock.eventUpstream _).expects("testTopic", 0).returning(eventUpstream(source, 0))
+    Then("it should forward events from the upstream to the subscriber")
+    subscriberProbe.expectMsg(EventNotification(0, "event0"))
+    subscriberProbe.expectMsg(EventNotification(1, "event1"))
 
-        When(s"a SubscriptionActor ${subscriptionRef.path} is started")
+    And("it shouldn't accept and forward events from the topic to the subscriber")
+    subscriptionRef ! EventNotification(3, "event notification from topic")
+    subscriberProbe.expectNoMessage(100 millis)
 
-        Then("it should send SubscribeAck to the subscriber")
-        subscriberProbe.expectMsg(SubscribeAck(subscriptionRef))
+    When("it has caught up with event upstream")
+    eventSourceQueue.complete()
 
-        And("it should start catching up with event upstream")
-        stateWatcher.expectMsg(Some("CatchingUpWithUpstream"))
+    Then("it should start waiting for events from topic")
+    stateWatcher.expectMsg(Some("WaitingForEvents"))
 
-        And("it should forward events from the upstream to the subscriber")
-        manualEventStream.offer("event0")
-        subscriberProbe.expectMsg(EventNotification(0, "event0"))
+    And("forward them to the subscriber")
+    val eventNotification = EventNotification(2, "event2")
+    subscriptionRef ! eventNotification
+    subscriberProbe.expectMsg(eventNotification)
 
-        manualEventStream.offer("event1")
-        subscriberProbe.expectMsg(EventNotification(1, "event1"))
+    When("it receives an event with unexpectedly greater ordinal")
+    // imagine there was a network partition and we somehow skipped the events from 3 to 9
+    subscriptionRef ! EventNotification(10, "event10")
 
-        And("it shouldn't accept and forward events from the topic to the subscriber")
-        val someEventOrdinal = 3
-        subscriptionRef ! EventNotification(someEventOrdinal, "event notification from topic")
-        subscriberProbe.expectNoMessage(100 millis)
+    Then("it shouldn't accept and forward the event")
+    subscriberProbe.expectNoMessage(100 millis)
 
-        And("it should start waiting for events when caught with event upstream")
-        manualEventStream.complete()
-        stateWatcher.expectMsg(Some("WaitingForEvents"))
-      }
-    }
-
-    "waiting for events" must {
-      "forward the event to the subscriber if it hasn't fallen behind the upstream" in {
-        val eventNotification = EventNotification(2, "event3")
-        subscriptionRef ! eventNotification
-        subscriberProbe.expectMsg(eventNotification)
-      }
-
-      "start catching up with event upstream if it has fallen behind the upstream" in {
-        val (_, source) = manualEventUpstream()
-        (eventStoreMock.eventUpstream _).expects("testTopic", 3).returning(eventUpstream(source, 3))
-
-        // imagine there was a network partition and we somehow skipped the events from 3 to 9
-        val someEventOrdinal = 10
-        subscriptionRef ! EventNotification(someEventOrdinal, "event10")
-
-        subscriberProbe.expectNoMessage(100 millis)
-        stateWatcher.expectMsg(Some("CatchingUpWithUpstream"))
-      }
-    }
+    And("it should start catching up with event upstream to fetch the missed events")
+    stateWatcher.expectMsg(Some("CatchingUpWithUpstream"))
   }
 }
