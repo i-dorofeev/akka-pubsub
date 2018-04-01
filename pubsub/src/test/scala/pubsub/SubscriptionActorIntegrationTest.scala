@@ -6,6 +6,7 @@ import akka.testkit.TestProbe
 import org.scalamock.scalatest.MockFactory
 import org.scalatest.{GivenWhenThen, Matchers, SequentialNestedSuiteExecution}
 import pubsub.fixtures.EventStoreStubFixture
+import pubsub.utils.{ActorSystemConfig, BaseTestKit}
 
 import scala.concurrent.duration._
 import scala.language.postfixOps

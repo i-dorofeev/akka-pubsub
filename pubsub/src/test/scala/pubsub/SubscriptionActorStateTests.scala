@@ -7,6 +7,7 @@ import org.scalamock.scalatest.MockFactory
 import pubsub.SubscriptionActor.EventOrdinal
 import pubsub.fixtures.{EndStateFixture, EventStoreStubFixture}
 import pubsub.fsm.StateFlow._
+import pubsub.utils.{ActorSystemConfig, BaseTestKit}
 
 import scala.concurrent.duration._
 import scala.language.postfixOps

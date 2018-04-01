@@ -4,8 +4,7 @@ import akka.actor.Props
 import akka.testkit.TestProbe
 import org.scalamock.scalatest.MockFactory
 import org.scalatest.{Matchers, SequentialNestedSuiteExecution}
-import pubsub.BaseTestKit
-import pubsub.mocks.PartialFunctionMockFactory
+import pubsub.utils.{BaseTestKit, PartialFunctionMockFactory}
 
 import scala.concurrent.duration._
 import scala.language.postfixOps
